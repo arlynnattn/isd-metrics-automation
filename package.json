@@ -1,0 +1,13 @@
+{
+  "name": "isd-metrics-automation",
+  "version": "1.0.0",
+  "description": "Automated weekly ISD metrics (TTFR/TTR) updates to Confluence",
+  "main": "update-confluence-metrics.js",
+  "scripts": {
+    "start": "node update-confluence-metrics.js",
+    "test": "node update-confluence-metrics.js"
+  },
+  "keywords": ["jira", "confluence", "metrics", "automation"],
+  "author": "Attentive ISD Team",
+  "license": "MIT"
+}
