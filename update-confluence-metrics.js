@@ -101,13 +101,14 @@ function getWeekRanges() {
 async function calculateMetrics(jql, weekLabel) {
   console.log(`\nFetching issues for ${weekLabel}...`);
 
-  const path = `/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=1000&fields=created,resolutiondate,comment,assignee,labels`;
+  const path = `/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=1000&fields=created,resolutiondate,comment,assignee,labels,issuetype,status,updated`;
   const response = await makeRequest(JIRA_BASE_URL, path);
 
   const issues = response.issues || [];
   console.log(`Found ${issues.length} issues`);
 
   const AUTOMATION_ACCOUNT = 'Attentive Jira OKTA Workflow Automation Account';
+  const now = new Date();
 
   let ttfrSum = 0;
   let ttfrCount = 0;
@@ -122,11 +123,24 @@ async function calculateMetrics(jql, weekLabel) {
   let humanTtrCount = 0;
   let workflowAutomationCount = 0;
 
+  // Additional dashboard metrics
+  let aged7Days = 0;
+  let aged14Days = 0;
+  let aged30Days = 0;
+  let createdCount = issues.length;
+  let resolvedCount = 0;
+  const issueTypeBreakdown = {};
+  const assigneeBreakdown = {};
+  let onboardingCount = 0;
+
   for (const issue of issues) {
     const created = new Date(issue.fields.created);
-    const assigneeName = issue.fields.assignee?.displayName || '';
+    const assigneeName = issue.fields.assignee?.displayName || 'Unassigned';
     const labels = issue.fields.labels || [];
     const isAutomated = assigneeName === AUTOMATION_ACCOUNT;
+    const issueType = issue.fields.issuetype?.name || 'Other';
+    const status = issue.fields.status?.name || 'Unknown';
+    const updated = new Date(issue.fields.updated);
 
     // Check if workflow/automation related
     const isWorkflowAutomation = isAutomated ||
@@ -135,6 +149,25 @@ async function calculateMetrics(jql, weekLabel) {
     if (isWorkflowAutomation) {
       workflowAutomationCount++;
     }
+
+    // Track onboarding tickets
+    if (issueType.toLowerCase().includes('onboarding')) {
+      onboardingCount++;
+    }
+
+    // Track aged tickets (unresolved only)
+    if (!issue.fields.resolutiondate) {
+      const ageInDays = (now - created) / (1000 * 60 * 60 * 24);
+      if (ageInDays >= 7) aged7Days++;
+      if (ageInDays >= 14) aged14Days++;
+      if (ageInDays >= 30) aged30Days++;
+    }
+
+    // Track assignee breakdown
+    if (!assigneeBreakdown[assigneeName]) {
+      assigneeBreakdown[assigneeName] = 0;
+    }
+    assigneeBreakdown[assigneeName]++;
 
     // Calculate TTFR (Time to First Response)
     // Find first comment after creation
@@ -150,11 +183,18 @@ async function calculateMetrics(jql, weekLabel) {
 
     // Calculate TTR (Time to Resolution)
     if (issue.fields.resolutiondate) {
+      resolvedCount++;
       const resolved = new Date(issue.fields.resolutiondate);
       const ttr = (resolved - created) / (1000 * 60 * 60); // hours
       if (ttr >= 0) {
         ttrSum += ttr;
         ttrCount++;
+
+        // Track issue type breakdown for resolved tickets
+        if (!issueTypeBreakdown[issueType]) {
+          issueTypeBreakdown[issueType] = 0;
+        }
+        issueTypeBreakdown[issueType]++;
 
         // Track automated vs human TTR
         if (isAutomated) {
@@ -195,7 +235,15 @@ async function calculateMetrics(jql, weekLabel) {
     avgAutomatedTTR,
     avgHumanTTR,
     workflowAutomationCount,
-    timeReclaimed
+    timeReclaimed,
+    aged7Days,
+    aged14Days,
+    aged30Days,
+    createdCount,
+    resolvedCount,
+    issueTypeBreakdown,
+    assigneeBreakdown,
+    onboardingCount
   };
 }
 
@@ -312,10 +360,138 @@ function generateMetricsHTML(metrics) {
       <td><p>${previousWeek.timeReclaimed}</p></td>
       <td><p>${calculateTimeReclaimedChange(previousWeek.timeReclaimed, currentWeek.timeReclaimed)}</p></td>
     </tr>
+    <tr>
+      <td><p><strong>Created vs Resolved</strong></p></td>
+      <td><p>${currentWeek.createdCount} / ${currentWeek.resolvedCount}</p></td>
+      <td><p>${previousWeek.createdCount} / ${previousWeek.resolvedCount}</p></td>
+      <td><p>-</p></td>
+    </tr>
+    <tr>
+      <td><p><strong>Aged Tickets (7+ days)</strong></p></td>
+      <td><p>${currentWeek.aged7Days}</p></td>
+      <td><p>${previousWeek.aged7Days}</p></td>
+      <td><p>${calculatePercentChange(previousWeek.aged7Days, currentWeek.aged7Days)}</p></td>
+    </tr>
+    <tr>
+      <td><p><strong>Aged Tickets (14+ days)</strong></p></td>
+      <td><p>${currentWeek.aged14Days}</p></td>
+      <td><p>${previousWeek.aged14Days}</p></td>
+      <td><p>${calculatePercentChange(previousWeek.aged14Days, currentWeek.aged14Days)}</p></td>
+    </tr>
+    <tr>
+      <td><p><strong>Aged Tickets (30+ days)</strong></p></td>
+      <td><p>${currentWeek.aged30Days}</p></td>
+      <td><p>${previousWeek.aged30Days}</p></td>
+      <td><p>${calculatePercentChange(previousWeek.aged30Days, currentWeek.aged30Days)}</p></td>
+    </tr>
+    <tr>
+      <td><p><strong>Onboarding Tickets</strong></p></td>
+      <td><p>${currentWeek.onboardingCount}</p></td>
+      <td><p>${previousWeek.onboardingCount}</p></td>
+      <td><p>${calculatePercentChange(previousWeek.onboardingCount, currentWeek.onboardingCount)}</p></td>
+    </tr>
   </tbody>
 </table>
 
+${generateIssueTypeBreakdownHTML(metrics)}
+${generateAssigneeBreakdownHTML(metrics)}
+
 <hr />
+`;
+}
+
+/**
+ * Generate issue type breakdown HTML
+ */
+function generateIssueTypeBreakdownHTML(metrics) {
+  const currentTypes = metrics.currentWeek.issueTypeBreakdown;
+  const previousTypes = metrics.previousWeek.issueTypeBreakdown;
+
+  const allTypes = new Set([...Object.keys(currentTypes), ...Object.keys(previousTypes)]);
+
+  if (allTypes.size === 0) return '';
+
+  let rows = '';
+  for (const type of allTypes) {
+    const currentCount = currentTypes[type] || 0;
+    const previousCount = previousTypes[type] || 0;
+    const currentTotal = metrics.currentWeek.resolvedCount || 1;
+    const previousTotal = metrics.previousWeek.resolvedCount || 1;
+    const currentPercent = ((currentCount / currentTotal) * 100).toFixed(1);
+    const previousPercent = ((previousCount / previousTotal) * 100).toFixed(1);
+
+    rows += `
+    <tr>
+      <td><p>${type}</p></td>
+      <td><p>${currentCount} (${currentPercent}%)</p></td>
+      <td><p>${previousCount} (${previousPercent}%)</p></td>
+      <td><p>${calculatePercentChange(previousCount, currentCount)}</p></td>
+    </tr>`;
+  }
+
+  return `
+<h3>Resolved Ticket Type Breakdown</h3>
+<table data-layout="default">
+  <tbody>
+    <tr>
+      <th><p><strong>Issue Type</strong></p></th>
+      <th><p><strong>${metrics.currentWeek.label}</strong></p></th>
+      <th><p><strong>${metrics.previousWeek.label}</strong></p></th>
+      <th><p><strong>Change</strong></p></th>
+    </tr>
+    ${rows}
+  </tbody>
+</table>
+`;
+}
+
+/**
+ * Generate assignee breakdown HTML
+ */
+function generateAssigneeBreakdownHTML(metrics) {
+  const currentAssignees = metrics.currentWeek.assigneeBreakdown;
+  const previousAssignees = metrics.previousWeek.assigneeBreakdown;
+
+  const allAssignees = new Set([...Object.keys(currentAssignees), ...Object.keys(previousAssignees)]);
+
+  if (allAssignees.size === 0) return '';
+
+  // Sort by current count descending
+  const sortedAssignees = Array.from(allAssignees).sort((a, b) => {
+    return (currentAssignees[b] || 0) - (currentAssignees[a] || 0);
+  });
+
+  let rows = '';
+  for (const assignee of sortedAssignees) {
+    const currentCount = currentAssignees[assignee] || 0;
+    const previousCount = previousAssignees[assignee] || 0;
+    const currentTotal = metrics.currentWeek.totalIssues || 1;
+    const previousTotal = metrics.previousWeek.totalIssues || 1;
+    const currentPercent = ((currentCount / currentTotal) * 100).toFixed(1);
+    const previousPercent = ((previousCount / previousTotal) * 100).toFixed(1);
+
+    rows += `
+    <tr>
+      <td><p>${assignee}</p></td>
+      <td><p>${currentCount} (${currentPercent}%)</p></td>
+      <td><p>${previousCount} (${previousPercent}%)</p></td>
+      <td><p>${calculatePercentChange(previousCount, currentCount)}</p></td>
+    </tr>`;
+  }
+
+  return `
+<h3>Total Tickets by Assignee</h3>
+<table data-layout="default">
+  <tbody>
+    <tr>
+      <th><p><strong>Assignee</strong></p></th>
+      <th><p><strong>${metrics.currentWeek.label}</strong></p></th>
+      <th><p><strong>${metrics.previousWeek.label}</strong></p></th>
+      <th><p><strong>Change</strong></p></th>
+    </tr>
+    ${rows}
+  </tbody>
+</table>
 `;
 }
 
