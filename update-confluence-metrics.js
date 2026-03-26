@@ -101,19 +101,40 @@ function getWeekRanges() {
 async function calculateMetrics(jql, weekLabel) {
   console.log(`\nFetching issues for ${weekLabel}...`);
 
-  const path = `/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=1000&fields=created,resolutiondate,comment`;
+  const path = `/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=1000&fields=created,resolutiondate,comment,assignee,labels`;
   const response = await makeRequest(JIRA_BASE_URL, path);
 
   const issues = response.issues || [];
   console.log(`Found ${issues.length} issues`);
+
+  const AUTOMATION_ACCOUNT = 'Attentive Jira OKTA Workflow Automation Account';
 
   let ttfrSum = 0;
   let ttfrCount = 0;
   let ttrSum = 0;
   let ttrCount = 0;
 
+  // New metrics tracking
+  let automatedResolvedCount = 0;
+  let automatedTtrSum = 0;
+  let automatedTtrCount = 0;
+  let humanTtrSum = 0;
+  let humanTtrCount = 0;
+  let workflowAutomationCount = 0;
+
   for (const issue of issues) {
     const created = new Date(issue.fields.created);
+    const assigneeName = issue.fields.assignee?.displayName || '';
+    const labels = issue.fields.labels || [];
+    const isAutomated = assigneeName === AUTOMATION_ACCOUNT;
+
+    // Check if workflow/automation related
+    const isWorkflowAutomation = isAutomated ||
+      labels.some(label => label.toLowerCase().includes('workflow') || label.toLowerCase().includes('automation'));
+
+    if (isWorkflowAutomation) {
+      workflowAutomationCount++;
+    }
 
     // Calculate TTFR (Time to First Response)
     // Find first comment after creation
@@ -134,19 +155,47 @@ async function calculateMetrics(jql, weekLabel) {
       if (ttr >= 0) {
         ttrSum += ttr;
         ttrCount++;
+
+        // Track automated vs human TTR
+        if (isAutomated) {
+          automatedResolvedCount++;
+          automatedTtrSum += ttr;
+          automatedTtrCount++;
+        } else {
+          humanTtrSum += ttr;
+          humanTtrCount++;
+        }
       }
     }
   }
 
   const avgTTFR = ttfrCount > 0 ? (ttfrSum / ttfrCount).toFixed(2) : 'N/A';
   const avgTTR = ttrCount > 0 ? (ttrSum / ttrCount).toFixed(2) : 'N/A';
+  const avgAutomatedTTR = automatedTtrCount > 0 ? (automatedTtrSum / automatedTtrCount).toFixed(2) : 'N/A';
+  const avgHumanTTR = humanTtrCount > 0 ? (humanTtrSum / humanTtrCount).toFixed(2) : 'N/A';
+  const automatedPercent = ttrCount > 0 ? ((automatedResolvedCount / ttrCount) * 100).toFixed(1) : 'N/A';
+
+  // Calculate human time reclaimed
+  let timeReclaimed = 'N/A';
+  if (avgHumanTTR !== 'N/A' && avgAutomatedTTR !== 'N/A' && automatedResolvedCount > 0) {
+    const timeSavedPerTicket = parseFloat(avgHumanTTR) - parseFloat(avgAutomatedTTR);
+    if (timeSavedPerTicket > 0) {
+      timeReclaimed = (timeSavedPerTicket * automatedResolvedCount).toFixed(2);
+    }
+  }
 
   return {
     totalIssues: issues.length,
     avgTTFR,
     avgTTR,
     ttfrCount,
-    ttrCount
+    ttrCount,
+    automatedResolvedCount,
+    automatedPercent,
+    avgAutomatedTTR,
+    avgHumanTTR,
+    workflowAutomationCount,
+    timeReclaimed
   };
 }
 
@@ -186,6 +235,8 @@ function generateMetricsHTML(metrics) {
 
   const ttfrChange = calculateChange(previousWeek.avgTTFR, currentWeek.avgTTFR);
   const ttrChange = calculateChange(previousWeek.avgTTR, currentWeek.avgTTR);
+  const automatedTtrChange = calculateChange(previousWeek.avgAutomatedTTR, currentWeek.avgAutomatedTTR);
+  const humanTtrChange = calculateChange(previousWeek.avgHumanTTR, currentWeek.avgHumanTTR);
 
   const timestamp = new Date().toLocaleString();
 
@@ -231,6 +282,36 @@ function generateMetricsHTML(metrics) {
       <td><p>${previousWeek.ttrCount}</p></td>
       <td><p>${calculatePercentChange(previousWeek.ttrCount, currentWeek.ttrCount)}</p></td>
     </tr>
+    <tr>
+      <td><p><strong>% Resolved Without Human Intervention</strong></p></td>
+      <td><p>${currentWeek.automatedPercent}%</p></td>
+      <td><p>${previousWeek.automatedPercent}%</p></td>
+      <td><p>${calculatePercentagePointChange(previousWeek.automatedPercent, currentWeek.automatedPercent)}</p></td>
+    </tr>
+    <tr>
+      <td><p><strong>Avg TTR - Automated (hours)</strong></p></td>
+      <td><p>${currentWeek.avgAutomatedTTR}</p></td>
+      <td><p>${previousWeek.avgAutomatedTTR}</p></td>
+      <td><p>${automatedTtrChange}</p></td>
+    </tr>
+    <tr>
+      <td><p><strong>Avg TTR - Human (hours)</strong></p></td>
+      <td><p>${currentWeek.avgHumanTTR}</p></td>
+      <td><p>${previousWeek.avgHumanTTR}</p></td>
+      <td><p>${humanTtrChange}</p></td>
+    </tr>
+    <tr>
+      <td><p><strong>Workflows Fully Automated</strong></p></td>
+      <td><p>${currentWeek.workflowAutomationCount}</p></td>
+      <td><p>${previousWeek.workflowAutomationCount}</p></td>
+      <td><p>${calculatePercentChange(previousWeek.workflowAutomationCount, currentWeek.workflowAutomationCount)}</p></td>
+    </tr>
+    <tr>
+      <td><p><strong>Human Time Reclaimed (hours)</strong></p></td>
+      <td><p>${currentWeek.timeReclaimed}</p></td>
+      <td><p>${previousWeek.timeReclaimed}</p></td>
+      <td><p>${calculateTimeReclaimedChange(previousWeek.timeReclaimed, currentWeek.timeReclaimed)}</p></td>
+    </tr>
   </tbody>
 </table>
 
@@ -257,6 +338,32 @@ function calculateChange(oldValue, newValue) {
   if (oldValue === 'N/A' || newValue === 'N/A') return 'N/A';
 
   const change = newValue - oldValue;
+  const arrow = change > 0 ? '↑' : change < 0 ? '↓' : '→';
+  return `${arrow} ${Math.abs(change).toFixed(2)} hrs`;
+}
+
+/**
+ * Calculate percentage point change
+ */
+function calculatePercentagePointChange(oldValue, newValue) {
+  if (oldValue === 'N/A' || newValue === 'N/A') return 'N/A';
+
+  const oldNum = parseFloat(oldValue);
+  const newNum = parseFloat(newValue);
+  const change = newNum - oldNum;
+  const arrow = change > 0 ? '↑' : change < 0 ? '↓' : '→';
+  return `${arrow} ${Math.abs(change).toFixed(1)}pp`;
+}
+
+/**
+ * Calculate time reclaimed change
+ */
+function calculateTimeReclaimedChange(oldValue, newValue) {
+  if (oldValue === 'N/A' || newValue === 'N/A') return 'N/A';
+
+  const oldNum = parseFloat(oldValue);
+  const newNum = parseFloat(newValue);
+  const change = newNum - oldNum;
   const arrow = change > 0 ? '↑' : change < 0 ? '↓' : '→';
   return `${arrow} ${Math.abs(change).toFixed(2)} hrs`;
 }
@@ -311,11 +418,21 @@ async function main() {
     console.log(`  Total Issues: ${metrics.currentWeek.totalIssues}`);
     console.log(`  Avg TTFR: ${metrics.currentWeek.avgTTFR} hours (${metrics.currentWeek.ttfrCount} issues)`);
     console.log(`  Avg TTR: ${metrics.currentWeek.avgTTR} hours (${metrics.currentWeek.ttrCount} issues)`);
+    console.log(`  % Resolved Without Human: ${metrics.currentWeek.automatedPercent}%`);
+    console.log(`  Avg TTR - Automated: ${metrics.currentWeek.avgAutomatedTTR} hours`);
+    console.log(`  Avg TTR - Human: ${metrics.currentWeek.avgHumanTTR} hours`);
+    console.log(`  Workflows Automated: ${metrics.currentWeek.workflowAutomationCount}`);
+    console.log(`  Human Time Reclaimed: ${metrics.currentWeek.timeReclaimed} hours`);
 
     console.log(`\nPrevious Week (${metrics.previousWeek.label}):`);
     console.log(`  Total Issues: ${metrics.previousWeek.totalIssues}`);
     console.log(`  Avg TTFR: ${metrics.previousWeek.avgTTFR} hours (${metrics.previousWeek.ttfrCount} issues)`);
     console.log(`  Avg TTR: ${metrics.previousWeek.avgTTR} hours (${metrics.previousWeek.ttrCount} issues)`);
+    console.log(`  % Resolved Without Human: ${metrics.previousWeek.automatedPercent}%`);
+    console.log(`  Avg TTR - Automated: ${metrics.previousWeek.avgAutomatedTTR} hours`);
+    console.log(`  Avg TTR - Human: ${metrics.previousWeek.avgHumanTTR} hours`);
+    console.log(`  Workflows Automated: ${metrics.previousWeek.workflowAutomationCount}`);
+    console.log(`  Human Time Reclaimed: ${metrics.previousWeek.timeReclaimed} hours`);
 
     const metricsHTML = generateMetricsHTML(metrics);
     await updateConfluencePage(metricsHTML);

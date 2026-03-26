@@ -1,14 +1,22 @@
 # ISD Metrics Automation
 
-Automated weekly updates of ISD project metrics (TTFR and TTR) to Confluence.
+Automated weekly updates of ISD project metrics to Confluence.
 
 ## What it does
 
 This automation:
-- Fetches TTFR (Time to First Response) and TTR (Time to Resolution) metrics from Jira
+- Fetches comprehensive metrics from Jira ISD project
 - Compares current week vs previous week
 - Automatically updates the Confluence page with a formatted table
 - Runs every Monday at 9:00 AM UTC
+
+**Metrics Tracked:**
+- TTFR (Time to First Response)
+- TTR (Time to Resolution)
+- % of tickets resolved without human intervention
+- Time to resolution: Automated vs Human
+- Number of workflows fully automated
+- Human time reclaimed (hours)
 
 ## Setup Instructions
 
@@ -119,12 +127,21 @@ Each week, a new table is added to the top of the page showing:
 - Number of issues with first response
 - Average TTR in hours
 - Number of resolved issues
-- Week-over-week percentage changes
+- % Resolved Without Human Intervention
+- Avg TTR - Automated vs Human
+- Workflows Fully Automated count
+- Human Time Reclaimed (hours)
+- Week-over-week changes for all metrics
 
 ## Metrics Definitions
 
 - **TTFR (Time to First Response)**: Time from issue creation to first comment
 - **TTR (Time to Resolution)**: Time from issue creation to resolution
+- **% Resolved Without Human Intervention**: Percentage of resolved tickets handled by "Attentive Jira OKTA Workflow Automation Account"
+- **Avg TTR - Automated**: Average resolution time for tickets handled by automation account
+- **Avg TTR - Human**: Average resolution time for tickets handled by human team members
+- **Workflows Fully Automated**: Count of issues assigned to automation account OR labeled with "Workflow" or "Automation"
+- **Human Time Reclaimed**: Calculated as (Avg Human TTR - Avg Automated TTR) × Number of Automated Tickets resolved
 
 ## Troubleshooting
 
