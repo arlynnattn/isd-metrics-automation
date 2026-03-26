@@ -7,6 +7,8 @@
  */
 
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
 
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
@@ -322,6 +324,21 @@ async function fetchSlackMetrics(startDate, endDate, monthLabel) {
 }
 
 /**
+ * Read CSAT from config file
+ */
+function readCSAT() {
+  try {
+    const configPath = path.join(__dirname, 'csat-config.json');
+    const configData = fs.readFileSync(configPath, 'utf8');
+    const config = JSON.parse(configData);
+    return config.monthly_csat || 'N/A';
+  } catch (error) {
+    console.warn('Warning: Could not read CSAT config file:', error.message);
+    return 'N/A';
+  }
+}
+
+/**
  * Fetch metrics for ISD project
  */
 async function fetchISDMonthlyMetrics() {
@@ -337,9 +354,12 @@ async function fetchISDMonthlyMetrics() {
   const currentSlack = await fetchSlackMetrics(months.currentMonth.start, months.currentMonth.end, months.currentMonth.label);
   const previousSlack = await fetchSlackMetrics(months.previousMonth.start, months.previousMonth.end, months.previousMonth.label);
 
+  // Add CSAT from config
+  const csat = readCSAT();
+
   return {
-    currentMonth: { ...months.currentMonth, ...currentMetrics, ...currentSlack },
-    previousMonth: { ...months.previousMonth, ...previousMetrics, ...previousSlack }
+    currentMonth: { ...months.currentMonth, ...currentMetrics, ...currentSlack, csat },
+    previousMonth: { ...months.previousMonth, ...previousMetrics, ...previousSlack, csat }
   };
 }
 
@@ -422,6 +442,12 @@ function generateMonthlyMetricsHTML(metrics) {
       <td><p>${current.messageCount} msgs<br/>${current.uniqueUsers} users</p></td>
       <td><p>${previous.messageCount} msgs<br/>${previous.uniqueUsers} users</p></td>
       <td><p>${slackMsgsChange}</p></td>
+    </tr>
+    <tr>
+      <td><p><strong>Team CSAT</strong></p></td>
+      <td><p>${current.csat}</p></td>
+      <td><p>${previous.csat}</p></td>
+      <td><p>-</p></td>
     </tr>
     <tr style="background-color: #e3fcef;">
       <td><p><strong>% Resolved Without Human</strong></p></td>

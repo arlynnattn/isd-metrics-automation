@@ -7,6 +7,8 @@
  */
 
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
 
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
@@ -248,6 +250,21 @@ async function calculateMetrics(jql, weekLabel) {
 }
 
 /**
+ * Read CSAT from config file
+ */
+function readCSAT() {
+  try {
+    const configPath = path.join(__dirname, 'csat-config.json');
+    const configData = fs.readFileSync(configPath, 'utf8');
+    const config = JSON.parse(configData);
+    return config.weekly_csat || 'N/A';
+  } catch (error) {
+    console.warn('Warning: Could not read CSAT config file:', error.message);
+    return 'N/A';
+  }
+}
+
+/**
  * Fetch metrics for ISD project
  */
 async function fetchISDMetrics() {
@@ -260,9 +277,12 @@ async function fetchISDMetrics() {
   const currentMetrics = await calculateMetrics(currentWeekJQL, weeks.currentWeek.label);
   const previousMetrics = await calculateMetrics(previousWeekJQL, weeks.previousWeek.label);
 
+  // Add CSAT from config
+  const csat = readCSAT();
+
   return {
-    currentWeek: { ...weeks.currentWeek, ...currentMetrics },
-    previousWeek: { ...weeks.previousWeek, ...previousMetrics }
+    currentWeek: { ...weeks.currentWeek, ...currentMetrics, csat },
+    previousWeek: { ...weeks.previousWeek, ...previousMetrics, csat }
   };
 }
 
@@ -364,6 +384,12 @@ function generateMetricsHTML(metrics) {
       <td><p><strong>Created vs Resolved</strong></p></td>
       <td><p>${currentWeek.createdCount} / ${currentWeek.resolvedCount}</p></td>
       <td><p>${previousWeek.createdCount} / ${previousWeek.resolvedCount}</p></td>
+      <td><p>-</p></td>
+    </tr>
+    <tr>
+      <td><p><strong>Team CSAT</strong></p></td>
+      <td><p>${currentWeek.csat}</p></td>
+      <td><p>${previousWeek.csat}</p></td>
       <td><p>-</p></td>
     </tr>
     <tr>
