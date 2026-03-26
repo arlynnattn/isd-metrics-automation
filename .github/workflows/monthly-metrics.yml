@@ -1,0 +1,33 @@
+name: Update ISD Metrics Monthly
+
+on:
+  schedule:
+    # Run on 1st of every month at 1:00 PM UTC (9:00 AM ET)
+    - cron: '0 13 1 * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  update-metrics:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Run monthly metrics update
+        env:
+          ATLASSIAN_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
+          ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: |
+          node update-confluence-monthly.js
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Monthly metrics update failed. Check the logs above for details."
