@@ -360,62 +360,43 @@ function generateMetricsHTML(metrics) {
 <h2>IT Ops Metrics Overview</h2>
 <p><em>Last updated: ${timestamp}</em></p>
 
-<h3>📊 Automated Metrics Tracking</h3>
-<p>The following metrics are automatically collected and reported weekly/monthly:</p>
+<h3>📋 Reports</h3>
 
-<h4>Service Delivery Metrics</h4>
-<ul>
-  <li><strong>Created vs Resolved Tickets</strong> - Weekly and monthly ticket volume with WoW/MoM comparison</li>
-  <li><strong>TTFR (Time to First Response)</strong> - SLA target: 2 hours business hours</li>
-  <li><strong>TTR (Time to Resolution)</strong> - SLA target: 16 hours business hours</li>
-  <li><strong>SLA Met %</strong> - Overall SLA performance tracking</li>
-  <li><strong>CSAT (Customer Satisfaction)</strong> - Average score and review count from Jira</li>
-</ul>
-
-<h4>Automation & Efficiency</h4>
-<ul>
-  <li><strong>Automation Rate</strong> - % of tickets resolved without human intervention</li>
-  <li><strong>Team Capacity & Availability</strong> - Engineer workload distribution and round robin status</li>
-  <li><strong>Department Breakdown</strong> - Top 5 departments by ticket volume</li>
-  <li><strong>Top SaaS Applications</strong> - Most requested access/provisioning (top 10)</li>
-</ul>
-
-<h4>Workforce Changes (FTE vs Contractor)</h4>
-<ul>
-  <li><strong>FTE Onboarded</strong> - CLONE - IT Support Onboarding tickets (Greenhouse/Sapling)</li>
-  <li><strong>Contractors Onboarded</strong> - CLONE - Contractor Onboarding tickets</li>
-  <li><strong>Employees Offboarded</strong> - CLONE - Device IT Offboarding tickets</li>
-  <li><strong>Net Headcount Change</strong> - Total onboarding minus offboarding</li>
-</ul>
-
-<h4>Communication & Engagement</h4>
-<ul>
-  <li><strong>#ask-it Slack Channel</strong> - Message count and unique user engagement</li>
-</ul>
-
-<h3>📋 Detailed Reports</h3>
-
-<h4>Data & Metrics</h4>
-<ul>
-  <li><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982"><strong>Weekly Metrics Dashboard</strong></a> - Last 7 days detailed metrics, charts, and breakdowns</li>
-  <li><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689"><strong>Monthly Metrics Dashboard</strong></a> - Month-to-date comprehensive data with team capacity analysis</li>
-</ul>
-
-<h4>Executive Analysis & Insights</h4>
-<ul>
-  <li><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6424363046"><strong>Weekly Analyst Report</strong></a> - Executive summary, trends, root causes, and action items</li>
-  <li><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6422003766"><strong>Monthly Analyst Report</strong></a> - Strategic insights, operational risks, and leadership recommendations</li>
-</ul>
+<table data-layout="default">
+  <tbody>
+    <tr>
+      <th><p><strong>Report Type</strong></p></th>
+      <th><p><strong>Purpose</strong></p></th>
+      <th><p><strong>Link</strong></p></th>
+    </tr>
+    <tr>
+      <td><p>Weekly Metrics Dashboard</p></td>
+      <td><p>Last 7 days data, charts, and breakdowns</p></td>
+      <td><p><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982">View Report</a></p></td>
+    </tr>
+    <tr>
+      <td><p>Weekly Analyst Report</p></td>
+      <td><p>Executive summary, trends, and action items</p></td>
+      <td><p><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6424363046">View Report</a></p></td>
+    </tr>
+    <tr>
+      <td><p>Monthly Metrics Dashboard</p></td>
+      <td><p>Month-to-date data with team capacity</p></td>
+      <td><p><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689">View Report</a></p></td>
+    </tr>
+    <tr>
+      <td><p>Monthly Analyst Report</p></td>
+      <td><p>Strategic insights and leadership recommendations</p></td>
+      <td><p><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6422003766">View Report</a></p></td>
+    </tr>
+  </tbody>
+</table>
 
 <h3>🔄 Update Schedule</h3>
 <ul>
-  <li><strong>Weekly Reports</strong> - Run <code>./run-weekly.sh</code> every Monday</li>
-  <li><strong>Monthly Reports</strong> - Run <code>./run-monthly.sh</code> on 1st of each month</li>
-  <li><strong>Analyst Reports</strong> - Run after metrics updates (scripts in development)</li>
-  <li><strong>This Overview</strong> - Run <code>./run-automation-metrics.sh</code> as needed</li>
+  <li><strong>Weekly Reports:</strong> Run <code>./run-weekly.sh</code> and <code>./run-weekly-analyst.sh</code> every Monday</li>
+  <li><strong>Monthly Reports:</strong> Run <code>./run-monthly.sh</code> and <code>./run-monthly-analyst.sh</code> on 1st of each month</li>
 </ul>
-
-<hr />
 `;
 }
 
