@@ -357,16 +357,19 @@ function generateMetricsHTML(metrics) {
   const currentWeek = metrics.currentWeek;
   const previousWeek = metrics.previousWeek;
 
-  const ttfrChange = calculateChange(previousWeek.avgTTFR, currentWeek.avgTTFR);
-  const ttrChange = calculateChange(previousWeek.avgTTR, currentWeek.avgTTR);
-  const automatedTtrChange = calculateChange(previousWeek.avgAutomatedTTR, currentWeek.avgAutomatedTTR);
-  const humanTtrChange = calculateChange(previousWeek.avgHumanTTR, currentWeek.avgHumanTTR);
-
   const timestamp = new Date().toLocaleString();
 
   return `
-<h2>ISD Metrics - Week over Week</h2>
+<h2>IT Ops Metrics Overview</h2>
 <p><em>Last updated: ${timestamp}</em></p>
+
+<p><strong>📊 Detailed Reports:</strong></p>
+<ul>
+  <li><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982">Weekly Metrics Report</a> - Last 7 days detailed analysis</li>
+  <li><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689">Monthly Metrics Report</a> - Month-to-date comprehensive dashboard</li>
+</ul>
+
+<h3>Key Highlights (Week-over-Week)</h3>
 
 <table data-layout="default">
   <tbody>
@@ -383,52 +386,16 @@ function generateMetricsHTML(metrics) {
       <td><p>${calculatePercentChange(previousWeek.totalIssues, currentWeek.totalIssues)}</p></td>
     </tr>
     <tr>
-      <td><p><strong>Avg TTFR (hours)</strong></p></td>
-      <td><p>${currentWeek.avgTTFR}</p></td>
-      <td><p>${previousWeek.avgTTFR}</p></td>
-      <td><p>${ttfrChange}</p></td>
-    </tr>
-    <tr>
-      <td><p><strong>Issues with Response</strong></p></td>
-      <td><p>${currentWeek.ttfrCount}</p></td>
-      <td><p>${previousWeek.ttfrCount}</p></td>
-      <td><p>${calculatePercentChange(previousWeek.ttfrCount, currentWeek.ttfrCount)}</p></td>
-    </tr>
-    <tr>
       <td><p><strong>Avg TTR (hours)</strong></p></td>
       <td><p>${currentWeek.avgTTR}</p></td>
       <td><p>${previousWeek.avgTTR}</p></td>
-      <td><p>${ttrChange}</p></td>
+      <td><p>${calculateChange(previousWeek.avgTTR, currentWeek.avgTTR)}</p></td>
     </tr>
     <tr>
-      <td><p><strong>Issues Resolved</strong></p></td>
-      <td><p>${currentWeek.ttrCount}</p></td>
-      <td><p>${previousWeek.ttrCount}</p></td>
-      <td><p>${calculatePercentChange(previousWeek.ttrCount, currentWeek.ttrCount)}</p></td>
-    </tr>
-    <tr>
-      <td><p><strong>% Resolved Without Human Intervention</strong></p></td>
+      <td><p><strong>% Automated</strong></p></td>
       <td><p>${currentWeek.automatedPercent}%</p></td>
       <td><p>${previousWeek.automatedPercent}%</p></td>
       <td><p>${calculatePercentagePointChange(previousWeek.automatedPercent, currentWeek.automatedPercent)}</p></td>
-    </tr>
-    <tr>
-      <td><p><strong>Avg TTR - Automated (hours)</strong></p></td>
-      <td><p>${currentWeek.avgAutomatedTTR}</p></td>
-      <td><p>${previousWeek.avgAutomatedTTR}</p></td>
-      <td><p>${automatedTtrChange}</p></td>
-    </tr>
-    <tr>
-      <td><p><strong>Avg TTR - Human (hours)</strong></p></td>
-      <td><p>${currentWeek.avgHumanTTR}</p></td>
-      <td><p>${previousWeek.avgHumanTTR}</p></td>
-      <td><p>${humanTtrChange}</p></td>
-    </tr>
-    <tr>
-      <td><p><strong>Workflows Fully Automated</strong></p></td>
-      <td><p>${currentWeek.workflowAutomationCount}</p></td>
-      <td><p>${previousWeek.workflowAutomationCount}</p></td>
-      <td><p>${calculatePercentChange(previousWeek.workflowAutomationCount, currentWeek.workflowAutomationCount)}</p></td>
     </tr>
     <tr>
       <td><p><strong>Human Time Reclaimed (hours)</strong></p></td>
@@ -437,46 +404,15 @@ function generateMetricsHTML(metrics) {
       <td><p>${calculateTimeReclaimedChange(previousWeek.timeReclaimed, currentWeek.timeReclaimed)}</p></td>
     </tr>
     <tr>
-      <td><p><strong>Created vs Resolved</strong></p></td>
-      <td><p>${currentWeek.createdCount} / ${currentWeek.resolvedCount}</p></td>
-      <td><p>${previousWeek.createdCount} / ${previousWeek.resolvedCount}</p></td>
-      <td><p>-</p></td>
-    </tr>
-    <tr>
       <td><p><strong>Team CSAT</strong></p></td>
       <td><p>${currentWeek.csat}</p></td>
       <td><p>${previousWeek.csat}</p></td>
       <td><p>-</p></td>
     </tr>
-    <tr>
-      <td><p><strong>Aged Tickets (7+ days)</strong></p></td>
-      <td><p>${currentWeek.aged7Days}</p></td>
-      <td><p>${previousWeek.aged7Days}</p></td>
-      <td><p>${calculatePercentChange(previousWeek.aged7Days, currentWeek.aged7Days)}</p></td>
-    </tr>
-    <tr>
-      <td><p><strong>Aged Tickets (14+ days)</strong></p></td>
-      <td><p>${currentWeek.aged14Days}</p></td>
-      <td><p>${previousWeek.aged14Days}</p></td>
-      <td><p>${calculatePercentChange(previousWeek.aged14Days, currentWeek.aged14Days)}</p></td>
-    </tr>
-    <tr>
-      <td><p><strong>Aged Tickets (30+ days)</strong></p></td>
-      <td><p>${currentWeek.aged30Days}</p></td>
-      <td><p>${previousWeek.aged30Days}</p></td>
-      <td><p>${calculatePercentChange(previousWeek.aged30Days, currentWeek.aged30Days)}</p></td>
-    </tr>
-    <tr>
-      <td><p><strong>Onboarding Tickets</strong></p></td>
-      <td><p>${currentWeek.onboardingCount}</p></td>
-      <td><p>${previousWeek.onboardingCount}</p></td>
-      <td><p>${calculatePercentChange(previousWeek.onboardingCount, currentWeek.onboardingCount)}</p></td>
-    </tr>
   </tbody>
 </table>
 
-<h2>Workforce Changes</h2>
-<p><strong>IT Ops completed onboarding and offboarding for the following workforce changes this period:</strong></p>
+<h3>Workforce Changes</h3>
 
 <table data-layout="default">
   <tbody>
@@ -484,37 +420,29 @@ function generateMetricsHTML(metrics) {
       <th><p><strong>Change Type</strong></p></th>
       <th><p><strong>This Week</strong></p></th>
       <th><p><strong>Last Week</strong></p></th>
-      <th><p><strong>Change</strong></p></th>
     </tr>
     <tr>
       <td><p>FTE Onboarded</p></td>
       <td><p>${currentWeek.workforce?.fteOnboarding || 0} employees</p></td>
       <td><p>${previousWeek.workforce?.fteOnboarding || 0} employees</p></td>
-      <td><p>${calculatePercentChange(previousWeek.workforce?.fteOnboarding || 0, currentWeek.workforce?.fteOnboarding || 0)}</p></td>
     </tr>
     <tr>
       <td><p>Contractors Onboarded</p></td>
       <td><p>${currentWeek.workforce?.contractorOnboarding || 0} contractors</p></td>
       <td><p>${previousWeek.workforce?.contractorOnboarding || 0} contractors</p></td>
-      <td><p>${calculatePercentChange(previousWeek.workforce?.contractorOnboarding || 0, currentWeek.workforce?.contractorOnboarding || 0)}</p></td>
     </tr>
     <tr>
       <td><p>Employees Offboarded</p></td>
       <td><p>${currentWeek.workforce?.offboarding || 0} employees</p></td>
       <td><p>${previousWeek.workforce?.offboarding || 0} employees</p></td>
-      <td><p>${calculatePercentChange(previousWeek.workforce?.offboarding || 0, currentWeek.workforce?.offboarding || 0)}</p></td>
     </tr>
     <tr>
-      <td><p>Net Headcount Change</p></td>
-      <td><p>${currentWeek.workforce?.netChange > 0 ? '+' : ''}${currentWeek.workforce?.netChange || 0}</p></td>
-      <td><p>${previousWeek.workforce?.netChange > 0 ? '+' : ''}${previousWeek.workforce?.netChange || 0}</p></td>
-      <td><p>-</p></td>
+      <td><p><strong>Net Headcount Change</strong></p></td>
+      <td><p><strong>${currentWeek.workforce?.netChange > 0 ? '+' : ''}${currentWeek.workforce?.netChange || 0}</strong></p></td>
+      <td><p><strong>${previousWeek.workforce?.netChange > 0 ? '+' : ''}${previousWeek.workforce?.netChange || 0}</strong></p></td>
     </tr>
   </tbody>
 </table>
-
-${generateIssueTypeBreakdownHTML(metrics)}
-${generateAssigneeBreakdownHTML(metrics)}
 
 <hr />
 `;
