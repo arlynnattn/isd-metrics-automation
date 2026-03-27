@@ -1,176 +1,173 @@
 # ISD Metrics Automation
 
-Automated weekly updates of ISD project metrics to Confluence.
+Automated reporting for IT Ops metrics from Jira Service Desk, matching the monthly leadership dashboard.
 
-## What it does
+## ✅ Features
 
-This automation:
-- Fetches comprehensive metrics from Jira ISD project
-- Compares current week vs previous week
-- Automatically updates the Confluence page with a formatted table
-- Runs every Monday at 9:00 AM UTC
+**Automated Data Collection:**
+- Jira ticket metrics (created, resolved, SLA performance)
+- Slack #ask-it channel activity  
+- CSAT scores from Jira
+- Department breakdown
+- Top SaaS application requests
+- Business hours SLA calculations (9-6 PM ET, Mon-Fri)
 
-**Metrics Tracked:**
-- TTFR (Time to First Response)
-- TTR (Time to Resolution)
-- % of tickets resolved without human intervention
-- Time to resolution: Automated vs Human
-- Number of workflows fully automated
-- Human time reclaimed (hours)
+**Two Report Types:**
+- **Weekly Report**: Last 7 days (uses `-7d` filter matching Jira)
+- **Monthly Report**: Current month to date
 
-## Setup Instructions
+## 🚀 Quick Start
 
-### 1. Create an Atlassian API Token
-
-1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
-2. Click "Create API token"
-3. Give it a name like "ISD Metrics Automation"
-4. Copy the token (you won't be able to see it again)
-
-### 2. Configure Environment Variables
-
-#### For Local Testing:
-
+### Run Weekly Report
 ```bash
-export ATLASSIAN_EMAIL="your-email@attentivemobile.com"
-export ATLASSIAN_API_TOKEN="your-api-token"
+cd ~/isd-metrics-automation
+./run-weekly.sh
 ```
 
-#### For GitHub Actions:
+### Run Monthly Report
+```bash
+cd ~/isd-metrics-automation  
+./run-monthly.sh
+```
 
-1. Go to your repository Settings → Secrets and variables → Actions
-2. Add two repository secrets:
-   - `ATLASSIAN_EMAIL`: Your Attentive email
-   - `ATLASSIAN_API_TOKEN`: Your API token
+Reports are saved to your **Desktop** as HTML files ready to paste into Confluence.
 
-### 3. Customize the Script (Optional)
+## 📋 How to Update Confluence
 
-The script is configured for the ISD project. You may want to adjust:
+Scripts automatically update Confluence pages. If manual update is needed:
 
-**Project Key**: In `update-confluence-metrics.js`, line 139-140:
+1. **Run the script** (weekly or monthly)
+2. **Find the HTML file** on your Desktop:
+   - `ISD_Weekly_Metrics_2026-03-27.html`
+   - `ISD_Monthly_Metrics_Mar_2026.html`
+3. **Open the file** and copy all content (Cmd+A, Cmd+C)
+4. **Go to the appropriate Confluence page**:
+   - **Weekly**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982
+   - **Monthly**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689
+5. **Edit the page** and paste the HTML
+
+## 📊 Metrics Included
+
+### Key Metrics Summary Table
+- **Created vs Resolved** tickets (with WoW/MoM comparison)
+- **TTFR** (Time to First Response) - SLA target: 2 hours
+- **TTR** (Time to Resolution) - SLA target: 16 hours  
+- **SLA Met %** - Overall SLA performance
+- **#ask-it Slack** - Messages and unique users
+- **CSAT** - Average score and review count
+
+### Additional Sections
+- Department breakdown (top 5 departments)
+- Access requests volume
+- Top SaaS applications (top 10 apps)
+- Resolved ticket type breakdown
+- SLA breach analysis with counts
+
+## ⚙️ Configuration
+
+### API Tokens
+The run scripts contain your API tokens (not recommended to commit to git):
+- **JIRA_API_TOKEN**: Read access to ISD project tickets
+- **SLACK_BOT_TOKEN**: Read access to #ask-it channel
+- **CONFLUENCE_API_TOKEN**: (Optional) Write access to Confluence pages
+
+### Jira Custom Fields
 ```javascript
-const currentWeekJQL = `project = ISD AND created >= ...`;
+FIELD_SERVICE_CATALOG = 'customfield_14446'  // SaaS app names (from Assets)
+FIELD_EMPLOYEE_DEPT = 'customfield_12617'    // Employee department
+FIELD_SATISFACTION = 'customfield_10048'     // CSAT rating (1-5 scale)
+FIELD_TTFR = 'customfield_10130'            // Business hours TTFR
+FIELD_TTR = 'customfield_10129'             // Business hours TTR
 ```
 
-**Filters**: Add filters to focus on specific issue types or teams:
+### JQL Filters Used
+
+**Weekly (last 7 days):**
+```jql
+# Resolved tickets
+project = ISD AND resolutiondate >= -7d AND status in ("13. Done", Canceled, Closed, Completed, Declined, Resolved)
+
+# Created tickets
+project = ISD AND created >= -7d
+```
+
+**Monthly (current month):**
+```jql
+# Resolved tickets
+project = ISD AND resolutiondate >= "2026-03-01" AND status in ("13. Done", Canceled, Closed, Completed, Declined, Resolved)
+
+# Created tickets
+project = ISD AND created >= "2026-03-01"
+```
+
+## 📁 Files
+
+- `update-confluence-weekly.js` - Weekly metrics script
+- `update-confluence-monthly-enhanced.js` - Monthly metrics script
+- `run-weekly.sh` - Helper to run weekly report
+- `run-monthly.sh` - Helper to run monthly report
+- `csat-config.json` - Manual CSAT tracking (deprecated, now auto-fetched)
+
+## 🔧 Troubleshooting
+
+### No tickets found (0 resolved/created)
+**Cause**: Jira API token doesn't have read access  
+**Fix**: Verify token at https://id.atlassian.com/manage-profile/security/api-tokens
+
+### Slack metrics showing "N/A"
+**Cause**: Slack Bot Token invalid or bot not in channel  
+**Fix**: 
+- Check token is correct
+- Invite bot to #ask-it: `/invite @IT Metrics Bot`
+
+### CSAT scores showing "N/A"  
+**Cause**: No CSAT responses in date range
+**Check**: This is normal if customers haven't submitted ratings
+
+### High SLA breach rate
+**Cause**: Check if business hours are configured correctly  
+**Current**: 9-6 PM ET, Monday-Friday (using Jira's built-in SLA fields)
+
+### Confluence 403/401 errors
+**Cause**: API token doesn't have Confluence write permissions  
+**Workaround**: Manual copy/paste from Desktop HTML files (current workflow)
+
+## 🛠️ Technical Details
+
+### SLA Calculation
+The scripts use Jira's **built-in SLA fields** which automatically calculate business hours:
+- `customfield_10130` (TTFR): Time to first response in business hours
+- `customfield_10129` (TTR): Time to resolution in business hours
+
+**Business Hours**: 9:00 AM - 6:00 PM Eastern Time, Monday-Friday
+
+### Service Catalog Resolution
+SaaS application names are fetched from Jira Assets API:
 ```javascript
-const currentWeekJQL = `project = ISD AND type = "Support Request" AND created >= ...`;
+/gateway/api/jsm/assets/workspace/{workspaceId}/v1/object/{objectId}
 ```
 
-**Schedule**: In `.github/workflows/weekly-metrics.yml`, adjust the cron schedule:
-```yaml
-schedule:
-  - cron: '0 9 * * 1'  # Monday at 9 AM UTC
-```
+This resolves object IDs like `"objectId": "12345"` to application names like `"Snowflake"`.
 
-### 4. Test Locally
+### Pagination
+Both scripts handle pagination for large result sets using Jira's `nextPageToken` parameter.
+
+## 📅 Scheduled Execution
+
+For automatic weekly/monthly reports, set up a cron job:
 
 ```bash
-cd isd-metrics-automation
-node update-confluence-metrics.js
+# Weekly on Monday at 9 AM
+0 9 * * 1 cd ~/isd-metrics-automation && ./run-weekly.sh
+
+# Monthly on 1st day of month at 9 AM
+0 9 1 * * cd ~/isd-metrics-automation && ./run-monthly.sh
 ```
 
-You should see output like:
-```
-=== ISD Metrics Automation ===
+## 💡 Support
 
-Fetching issues for Week of 10/7/2025...
-Found 45 issues
-
-Fetching issues for Week of 9/30/2025...
-Found 38 issues
-
-=== Metrics Summary ===
-Current Week (Week of 10/7/2025):
-  Total Issues: 45
-  Avg TTFR: 2.45 hours (40 issues)
-  Avg TTR: 18.32 hours (35 issues)
-
-Previous Week (Week of 9/30/2025):
-  Total Issues: 38
-  Avg TTFR: 3.12 hours (35 issues)
-  Avg TTR: 22.15 hours (30 issues)
-
-Fetching current Confluence page...
-Updating Confluence page...
-✓ Confluence page updated successfully!
-
-✓ All done!
-```
-
-### 5. Deploy to GitHub
-
-```bash
-git init
-git add .
-git commit -m "Add ISD metrics automation"
-git remote add origin <your-repo-url>
-git push -u origin main
-```
-
-### 6. Enable GitHub Actions
-
-1. Go to your repository on GitHub
-2. Click the "Actions" tab
-3. Enable workflows if prompted
-4. The workflow will run automatically every Monday
-5. You can also trigger it manually using "Run workflow"
-
-## Confluence Page
-
-The metrics are published to:
-https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/5471371324/Test+Claud
-
-Each week, a new table is added to the top of the page showing:
-- Total Issues (current vs previous week)
-- Average TTFR in hours
-- Number of issues with first response
-- Average TTR in hours
-- Number of resolved issues
-- % Resolved Without Human Intervention
-- Avg TTR - Automated vs Human
-- Workflows Fully Automated count
-- Human Time Reclaimed (hours)
-- Week-over-week changes for all metrics
-
-## Metrics Definitions
-
-- **TTFR (Time to First Response)**: Time from issue creation to first comment
-- **TTR (Time to Resolution)**: Time from issue creation to resolution
-- **% Resolved Without Human Intervention**: Percentage of resolved tickets handled by "Attentive Jira OKTA Workflow Automation Account"
-- **Avg TTR - Automated**: Average resolution time for tickets handled by automation account
-- **Avg TTR - Human**: Average resolution time for tickets handled by human team members
-- **Workflows Fully Automated**: Count of issues assigned to automation account OR labeled with "Workflow" or "Automation"
-- **Human Time Reclaimed**: Calculated as (Avg Human TTR - Avg Automated TTR) × Number of Automated Tickets resolved
-
-## Troubleshooting
-
-**Authentication errors**: Verify your email and API token are correct
-
-**No issues found**: Check the JQL query in the script matches your project
-
-**Permission errors**: Ensure your Atlassian account has access to:
-  - View Jira issues in the ISD project
-  - Edit the Confluence page
-
-**GitHub Actions not running**: Check:
-  - Secrets are configured correctly
-  - Actions are enabled in repository settings
-  - Workflow file is in `.github/workflows/` directory
-
-## Manual Execution
-
-To run manually on any schedule:
-
-```bash
-# Run immediately
-node update-confluence-metrics.js
-
-# Or use cron (Linux/Mac)
-crontab -e
-# Add: 0 9 * * 1 cd /path/to/isd-metrics-automation && node update-confluence-metrics.js
-```
-
-## Support
-
-For questions or issues, reach out in #ask-security or #isd-team
+For issues or questions:
+- Review error messages in script output
+- Verify API tokens haven't expired
+- Reach out in **#ask-security** for token permission questions
+- Contact **@arlynn** for script modifications
