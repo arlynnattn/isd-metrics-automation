@@ -26,24 +26,33 @@ cd ~/isd-metrics-automation
 
 ### Run Monthly Report
 ```bash
-cd ~/isd-metrics-automation  
+cd ~/isd-metrics-automation
 ./run-monthly.sh
 ```
 
-Reports are saved to your **Desktop** as HTML files ready to paste into Confluence.
+### Run Automation Metrics Report
+```bash
+cd ~/isd-metrics-automation
+./run-automation-metrics.sh
+```
+
+Weekly and Monthly reports are saved to your **Desktop** as HTML files. The Automation Metrics report updates the Confluence page directly.
 
 ## 📋 How to Update Confluence
 
-Scripts automatically update Confluence pages. If manual update is needed:
+Scripts automatically update Confluence pages:
+- **Weekly**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982
+- **Monthly**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689
+- **Automation Metrics**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/5471371324
+
+If manual update is needed for Weekly/Monthly reports:
 
 1. **Run the script** (weekly or monthly)
 2. **Find the HTML file** on your Desktop:
    - `ISD_Weekly_Metrics_2026-03-27.html`
    - `ISD_Monthly_Metrics_Mar_2026.html`
 3. **Open the file** and copy all content (Cmd+A, Cmd+C)
-4. **Go to the appropriate Confluence page**:
-   - **Weekly**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982
-   - **Monthly**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689
+4. **Go to the appropriate Confluence page** (links above)
 5. **Edit the page** and paste the HTML
 
 ## 📊 Metrics Included
@@ -104,8 +113,10 @@ project = ISD AND created >= "2026-03-01"
 
 - `update-confluence-weekly.js` - Weekly metrics script
 - `update-confluence-monthly-enhanced.js` - Monthly metrics script
+- `update-confluence-metrics.js` - Automation metrics week-over-week script
 - `run-weekly.sh` - Helper to run weekly report
 - `run-monthly.sh` - Helper to run monthly report
+- `run-automation-metrics.sh` - Helper to run automation metrics report
 - `csat-config.json` - Manual CSAT tracking (deprecated, now auto-fetched)
 
 ## 🔧 Troubleshooting

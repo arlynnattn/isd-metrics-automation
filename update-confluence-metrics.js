@@ -267,6 +267,55 @@ function readCSAT() {
 /**
  * Fetch metrics for ISD project
  */
+/**
+ * Count workforce changes (onboarding and offboarding tickets)
+ * by resolved date (showing IT's completed work)
+ */
+async function countWorkforceChanges(startDate, endDate, label) {
+  console.log(`  Counting workforce changes for ${label}`);
+
+  const startStr = startDate.toISOString().split('T')[0];
+  const endStr = endDate.toISOString().split('T')[0];
+
+  // Build resolution date filter
+  const dateFilter = `resolutiondate >= "${startStr}" AND resolutiondate <= "${endStr}"`;
+
+  // FTE Onboarding: CLONE - IT Support Onboarding from Greenhouse or Sapling
+  const fteOnboardingJql = `project = ISD AND summary ~ "CLONE - IT Support Onboarding" AND reporter in ("jira-greenhouse@attentivemobile.com", "jira-sapling@attentivemobile.com") AND ${dateFilter}`;
+
+  // Contractor Onboarding: CLONE - Contractor Onboarding
+  const contractorOnboardingJql = `project = ISD AND summary ~ "CLONE - Contractor Onboarding" AND ${dateFilter}`;
+
+  // Offboarding: CLONE - Device IT Offboarding from Sapling
+  const offboardingJql = `project = ISD AND summary ~ "CLONE - Device IT Offboarding" AND reporter = "jira-sapling@attentivemobile.com" AND ${dateFilter}`;
+
+  // Fetch FTE onboarding tickets
+  const fteOnboardingPath = `/rest/api/3/search/jql?jql=${encodeURIComponent(fteOnboardingJql)}&maxResults=1000&fields=key`;
+  const fteOnboardingResponse = await makeRequest(JIRA_BASE_URL, fteOnboardingPath);
+  const fteOnboardingIssues = fteOnboardingResponse.issues || [];
+
+  // Fetch contractor onboarding tickets
+  const contractorOnboardingPath = `/rest/api/3/search/jql?jql=${encodeURIComponent(contractorOnboardingJql)}&maxResults=1000&fields=key`;
+  const contractorOnboardingResponse = await makeRequest(JIRA_BASE_URL, contractorOnboardingPath);
+  const contractorOnboardingIssues = contractorOnboardingResponse.issues || [];
+
+  // Fetch offboarding tickets
+  const offboardingPath = `/rest/api/3/search/jql?jql=${encodeURIComponent(offboardingJql)}&maxResults=1000&fields=key`;
+  const offboardingResponse = await makeRequest(JIRA_BASE_URL, offboardingPath);
+  const offboardingIssues = offboardingResponse.issues || [];
+
+  const totalOnboarding = fteOnboardingIssues.length + contractorOnboardingIssues.length;
+  console.log(`  Found ${fteOnboardingIssues.length} FTE onboardings, ${contractorOnboardingIssues.length} contractor onboardings, ${offboardingIssues.length} offboardings`);
+
+  return {
+    fteOnboarding: fteOnboardingIssues.length,
+    contractorOnboarding: contractorOnboardingIssues.length,
+    totalOnboarding: totalOnboarding,
+    offboarding: offboardingIssues.length,
+    netChange: totalOnboarding - offboardingIssues.length
+  };
+}
+
 async function fetchISDMetrics() {
   const weeks = getWeekRanges();
 
@@ -277,12 +326,19 @@ async function fetchISDMetrics() {
   const currentMetrics = await calculateMetrics(currentWeekJQL, weeks.currentWeek.label);
   const previousMetrics = await calculateMetrics(previousWeekJQL, weeks.previousWeek.label);
 
+  // Count workforce changes (onboarding/offboarding by resolved date)
+  console.log('\nCounting workforce changes...');
+  const currentWorkforce = await countWorkforceChanges(weeks.currentWeek.start, weeks.currentWeek.end, weeks.currentWeek.label);
+  const previousWorkforce = await countWorkforceChanges(weeks.previousWeek.start, weeks.previousWeek.end, weeks.previousWeek.label);
+  console.log(`Current week: ${currentWorkforce.fteOnboarding} FTE + ${currentWorkforce.contractorOnboarding} contractors onboarded, ${currentWorkforce.offboarding} offboarded`);
+  console.log(`Previous week: ${previousWorkforce.fteOnboarding} FTE + ${previousWorkforce.contractorOnboarding} contractors onboarded, ${previousWorkforce.offboarding} offboarded`);
+
   // Add CSAT from config
   const csat = readCSAT();
 
   return {
-    currentWeek: { ...weeks.currentWeek, ...currentMetrics, csat },
-    previousWeek: { ...weeks.previousWeek, ...previousMetrics, csat }
+    currentWeek: { ...weeks.currentWeek, ...currentMetrics, csat, workforce: currentWorkforce },
+    previousWeek: { ...weeks.previousWeek, ...previousMetrics, csat, workforce: previousWorkforce }
   };
 }
 
@@ -415,6 +471,44 @@ function generateMetricsHTML(metrics) {
       <td><p>${currentWeek.onboardingCount}</p></td>
       <td><p>${previousWeek.onboardingCount}</p></td>
       <td><p>${calculatePercentChange(previousWeek.onboardingCount, currentWeek.onboardingCount)}</p></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Workforce Changes</h2>
+<p><strong>IT Ops completed onboarding and offboarding for the following workforce changes this period:</strong></p>
+
+<table data-layout="default">
+  <tbody>
+    <tr>
+      <th><p><strong>Change Type</strong></p></th>
+      <th><p><strong>This Week</strong></p></th>
+      <th><p><strong>Last Week</strong></p></th>
+      <th><p><strong>Change</strong></p></th>
+    </tr>
+    <tr>
+      <td><p>FTE Onboarded</p></td>
+      <td><p>${currentWeek.workforce?.fteOnboarding || 0} employees</p></td>
+      <td><p>${previousWeek.workforce?.fteOnboarding || 0} employees</p></td>
+      <td><p>${calculatePercentChange(previousWeek.workforce?.fteOnboarding || 0, currentWeek.workforce?.fteOnboarding || 0)}</p></td>
+    </tr>
+    <tr>
+      <td><p>Contractors Onboarded</p></td>
+      <td><p>${currentWeek.workforce?.contractorOnboarding || 0} contractors</p></td>
+      <td><p>${previousWeek.workforce?.contractorOnboarding || 0} contractors</p></td>
+      <td><p>${calculatePercentChange(previousWeek.workforce?.contractorOnboarding || 0, currentWeek.workforce?.contractorOnboarding || 0)}</p></td>
+    </tr>
+    <tr>
+      <td><p>Employees Offboarded</p></td>
+      <td><p>${currentWeek.workforce?.offboarding || 0} employees</p></td>
+      <td><p>${previousWeek.workforce?.offboarding || 0} employees</p></td>
+      <td><p>${calculatePercentChange(previousWeek.workforce?.offboarding || 0, currentWeek.workforce?.offboarding || 0)}</p></td>
+    </tr>
+    <tr>
+      <td><p>Net Headcount Change</p></td>
+      <td><p>${currentWeek.workforce?.netChange > 0 ? '+' : ''}${currentWeek.workforce?.netChange || 0}</p></td>
+      <td><p>${previousWeek.workforce?.netChange > 0 ? '+' : ''}${previousWeek.workforce?.netChange || 0}</p></td>
+      <td><p>-</p></td>
     </tr>
   </tbody>
 </table>
