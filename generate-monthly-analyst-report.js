@@ -225,6 +225,26 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
 
 <hr />
 
+<h2>6. Monthly Notables</h2>
+<p><strong>Significant incidents, issues, or events from this month:</strong></p>
+
+<h3>Mar 17, 2026 - Ticket Clock Cleanup (Metrics Impact)</h3>
+<p><strong>Issue:</strong> Slack alerts triggered for old 2024 tickets with time clocks still running</p>
+<ul>
+  <li><strong>Impact:</strong> 221+ canceled/old tickets had active time tracking, causing confusion and alerts</li>
+  <li><strong>Metrics Impact:</strong> ⚠️ <strong>Skewed TTR and time tracking data for March</strong> - cleanup of old running clocks affected monthly averages and trends</li>
+  <li><strong>Root Cause:</strong> Time clocks not automatically stopped when tickets were canceled by automation or reporters</li>
+  <li><strong>Resolution:</strong> Manual cleanup initiated - correcting time tracking on old tickets</li>
+  <li><strong>Risk:</strong> Mass updates may trigger notifications to all ticket participants (reporters, watchers)</li>
+  <li><strong>Action Item:</strong> Review automation workflows to ensure time tracking stops when tickets are canceled</li>
+  <li><strong>Process Improvement:</strong> Add time clock validation to ticket close/cancel workflows</li>
+  <li><strong>Data Quality:</strong> Consider normalizing metrics for March or adding footnote to reports about data cleanup impact on trend analysis</li>
+</ul>
+
+<p><em>Add new notables each month to track incidents, system changes, and important events</em></p>
+
+<hr />
+
 <p><em>📊 For detailed metrics, team capacity breakdown, and department analysis, see the <a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689">Monthly Metrics Dashboard</a></em></p>
 `;
 }

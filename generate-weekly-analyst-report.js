@@ -177,6 +177,25 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
 
 <hr />
 
+<h2>6. Weekly Notables</h2>
+<p><strong>Significant incidents, issues, or events from this week:</strong></p>
+
+<h3>Mar 17, 2026 - Ticket Clock Cleanup (Metrics Impact)</h3>
+<p><strong>Issue:</strong> Slack alerts triggered for old 2024 tickets with time clocks still running</p>
+<ul>
+  <li><strong>Impact:</strong> 221+ canceled/old tickets had active time tracking, causing confusion and alerts</li>
+  <li><strong>Metrics Impact:</strong> ⚠️ <strong>Skewed TTR and time tracking data</strong> - cleanup of old running clocks affected weekly/monthly averages</li>
+  <li><strong>Root Cause:</strong> Time clocks not automatically stopped when tickets were canceled by automation or reporters</li>
+  <li><strong>Resolution:</strong> Manual cleanup initiated - correcting time tracking on old tickets</li>
+  <li><strong>Risk:</strong> Mass updates may trigger notifications to all ticket participants (reporters, watchers)</li>
+  <li><strong>Action Item:</strong> Review automation workflows to ensure time tracking stops when tickets are canceled</li>
+  <li><strong>Data Quality:</strong> Consider normalizing metrics for this period or adding footnote to reports about data cleanup impact</li>
+</ul>
+
+<p><em>Add new notables each week to track incidents, changes, and important events</em></p>
+
+<hr />
+
 <p><em>📊 For detailed metrics and breakdowns, see the <a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982">Weekly Metrics Dashboard</a></em></p>
 `;
 }
