@@ -36,14 +36,23 @@ cd ~/isd-metrics-automation
 ./run-automation-metrics.sh
 ```
 
-Weekly and Monthly reports are saved to your **Desktop** as HTML files. The Automation Metrics report updates the Confluence page directly.
+### Run Analyst Reports
+```bash
+cd ~/isd-metrics-automation
+./run-weekly-analyst.sh    # Executive analysis of weekly metrics
+./run-monthly-analyst.sh   # Strategic insights from monthly metrics
+```
+
+Weekly and Monthly data reports are saved to your **Desktop** as HTML files. The Automation Metrics and Analyst Reports update Confluence pages directly.
 
 ## 📋 How to Update Confluence
 
 Scripts automatically update Confluence pages:
-- **Weekly**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982
-- **Monthly**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689
-- **Automation Metrics**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/5471371324
+- **Weekly Metrics**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982
+- **Monthly Metrics**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689
+- **Automation Metrics Overview**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/5471371324
+- **Weekly Analyst Report**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6424363046
+- **Monthly Analyst Report**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6422003766
 
 If manual update is needed for Weekly/Monthly reports:
 
@@ -111,12 +120,21 @@ project = ISD AND created >= "2026-03-01"
 
 ## 📁 Files
 
-- `update-confluence-weekly.js` - Weekly metrics script
-- `update-confluence-monthly-enhanced.js` - Monthly metrics script
-- `update-confluence-metrics.js` - Automation metrics week-over-week script
-- `run-weekly.sh` - Helper to run weekly report
-- `run-monthly.sh` - Helper to run monthly report
-- `run-automation-metrics.sh` - Helper to run automation metrics report
+### Data Collection Scripts
+- `update-confluence-weekly.js` - Weekly metrics data collection
+- `update-confluence-monthly-enhanced.js` - Monthly metrics data collection
+- `update-confluence-metrics.js` - Automation metrics overview (week-over-week)
+
+### Analyst Report Scripts
+- `generate-weekly-analyst-report.js` - Executive analysis of weekly metrics
+- `generate-monthly-analyst-report.js` - Strategic insights from monthly metrics
+
+### Helper Scripts
+- `run-weekly.sh` - Run weekly metrics report
+- `run-monthly.sh` - Run monthly metrics report
+- `run-automation-metrics.sh` - Run automation metrics overview
+- `run-weekly-analyst.sh` - Run weekly analyst report
+- `run-monthly-analyst.sh` - Run monthly analyst report
 - `csat-config.json` - Manual CSAT tracking (deprecated, now auto-fetched)
 
 ## 🔧 Troubleshooting

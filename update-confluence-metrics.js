@@ -354,95 +354,66 @@ async function getConfluencePage() {
  * Generate metrics table HTML
  */
 function generateMetricsHTML(metrics) {
-  const currentWeek = metrics.currentWeek;
-  const previousWeek = metrics.previousWeek;
-
   const timestamp = new Date().toLocaleString();
 
   return `
 <h2>IT Ops Metrics Overview</h2>
 <p><em>Last updated: ${timestamp}</em></p>
 
-<p><strong>📊 Detailed Reports:</strong></p>
+<h3>📊 Automated Metrics Tracking</h3>
+<p>The following metrics are automatically collected and reported weekly/monthly:</p>
+
+<h4>Service Delivery Metrics</h4>
 <ul>
-  <li><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982">Weekly Metrics Report</a> - Last 7 days detailed analysis</li>
-  <li><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689">Monthly Metrics Report</a> - Month-to-date comprehensive dashboard</li>
+  <li><strong>Created vs Resolved Tickets</strong> - Weekly and monthly ticket volume with WoW/MoM comparison</li>
+  <li><strong>TTFR (Time to First Response)</strong> - SLA target: 2 hours business hours</li>
+  <li><strong>TTR (Time to Resolution)</strong> - SLA target: 16 hours business hours</li>
+  <li><strong>SLA Met %</strong> - Overall SLA performance tracking</li>
+  <li><strong>CSAT (Customer Satisfaction)</strong> - Average score and review count from Jira</li>
 </ul>
 
-<h3>Key Highlights (Week-over-Week)</h3>
+<h4>Automation & Efficiency</h4>
+<ul>
+  <li><strong>Automation Rate</strong> - % of tickets resolved without human intervention</li>
+  <li><strong>Team Capacity & Availability</strong> - Engineer workload distribution and round robin status</li>
+  <li><strong>Department Breakdown</strong> - Top 5 departments by ticket volume</li>
+  <li><strong>Top SaaS Applications</strong> - Most requested access/provisioning (top 10)</li>
+</ul>
 
-<table data-layout="default">
-  <tbody>
-    <tr>
-      <th><p><strong>Metric</strong></p></th>
-      <th><p><strong>${currentWeek.label}</strong></p></th>
-      <th><p><strong>${previousWeek.label}</strong></p></th>
-      <th><p><strong>Change</strong></p></th>
-    </tr>
-    <tr>
-      <td><p><strong>Total Issues</strong></p></td>
-      <td><p>${currentWeek.totalIssues}</p></td>
-      <td><p>${previousWeek.totalIssues}</p></td>
-      <td><p>${calculatePercentChange(previousWeek.totalIssues, currentWeek.totalIssues)}</p></td>
-    </tr>
-    <tr>
-      <td><p><strong>Avg TTR (hours)</strong></p></td>
-      <td><p>${currentWeek.avgTTR}</p></td>
-      <td><p>${previousWeek.avgTTR}</p></td>
-      <td><p>${calculateChange(previousWeek.avgTTR, currentWeek.avgTTR)}</p></td>
-    </tr>
-    <tr>
-      <td><p><strong>% Automated</strong></p></td>
-      <td><p>${currentWeek.automatedPercent}%</p></td>
-      <td><p>${previousWeek.automatedPercent}%</p></td>
-      <td><p>${calculatePercentagePointChange(previousWeek.automatedPercent, currentWeek.automatedPercent)}</p></td>
-    </tr>
-    <tr>
-      <td><p><strong>Human Time Reclaimed (hours)</strong></p></td>
-      <td><p>${currentWeek.timeReclaimed}</p></td>
-      <td><p>${previousWeek.timeReclaimed}</p></td>
-      <td><p>${calculateTimeReclaimedChange(previousWeek.timeReclaimed, currentWeek.timeReclaimed)}</p></td>
-    </tr>
-    <tr>
-      <td><p><strong>Team CSAT</strong></p></td>
-      <td><p>${currentWeek.csat}</p></td>
-      <td><p>${previousWeek.csat}</p></td>
-      <td><p>-</p></td>
-    </tr>
-  </tbody>
-</table>
+<h4>Workforce Changes (FTE vs Contractor)</h4>
+<ul>
+  <li><strong>FTE Onboarded</strong> - CLONE - IT Support Onboarding tickets (Greenhouse/Sapling)</li>
+  <li><strong>Contractors Onboarded</strong> - CLONE - Contractor Onboarding tickets</li>
+  <li><strong>Employees Offboarded</strong> - CLONE - Device IT Offboarding tickets</li>
+  <li><strong>Net Headcount Change</strong> - Total onboarding minus offboarding</li>
+</ul>
 
-<h3>Workforce Changes</h3>
+<h4>Communication & Engagement</h4>
+<ul>
+  <li><strong>#ask-it Slack Channel</strong> - Message count and unique user engagement</li>
+</ul>
 
-<table data-layout="default">
-  <tbody>
-    <tr>
-      <th><p><strong>Change Type</strong></p></th>
-      <th><p><strong>This Week</strong></p></th>
-      <th><p><strong>Last Week</strong></p></th>
-    </tr>
-    <tr>
-      <td><p>FTE Onboarded</p></td>
-      <td><p>${currentWeek.workforce?.fteOnboarding || 0} employees</p></td>
-      <td><p>${previousWeek.workforce?.fteOnboarding || 0} employees</p></td>
-    </tr>
-    <tr>
-      <td><p>Contractors Onboarded</p></td>
-      <td><p>${currentWeek.workforce?.contractorOnboarding || 0} contractors</p></td>
-      <td><p>${previousWeek.workforce?.contractorOnboarding || 0} contractors</p></td>
-    </tr>
-    <tr>
-      <td><p>Employees Offboarded</p></td>
-      <td><p>${currentWeek.workforce?.offboarding || 0} employees</p></td>
-      <td><p>${previousWeek.workforce?.offboarding || 0} employees</p></td>
-    </tr>
-    <tr>
-      <td><p><strong>Net Headcount Change</strong></p></td>
-      <td><p><strong>${currentWeek.workforce?.netChange > 0 ? '+' : ''}${currentWeek.workforce?.netChange || 0}</strong></p></td>
-      <td><p><strong>${previousWeek.workforce?.netChange > 0 ? '+' : ''}${previousWeek.workforce?.netChange || 0}</strong></p></td>
-    </tr>
-  </tbody>
-</table>
+<h3>📋 Detailed Reports</h3>
+
+<h4>Data & Metrics</h4>
+<ul>
+  <li><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982"><strong>Weekly Metrics Dashboard</strong></a> - Last 7 days detailed metrics, charts, and breakdowns</li>
+  <li><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689"><strong>Monthly Metrics Dashboard</strong></a> - Month-to-date comprehensive data with team capacity analysis</li>
+</ul>
+
+<h4>Executive Analysis & Insights</h4>
+<ul>
+  <li><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6424363046"><strong>Weekly Analyst Report</strong></a> - Executive summary, trends, root causes, and action items</li>
+  <li><a href="https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6422003766"><strong>Monthly Analyst Report</strong></a> - Strategic insights, operational risks, and leadership recommendations</li>
+</ul>
+
+<h3>🔄 Update Schedule</h3>
+<ul>
+  <li><strong>Weekly Reports</strong> - Run <code>./run-weekly.sh</code> every Monday</li>
+  <li><strong>Monthly Reports</strong> - Run <code>./run-monthly.sh</code> on 1st of each month</li>
+  <li><strong>Analyst Reports</strong> - Run after metrics updates (scripts in development)</li>
+  <li><strong>This Overview</strong> - Run <code>./run-automation-metrics.sh</code> as needed</li>
+</ul>
 
 <hr />
 `;
