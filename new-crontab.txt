@@ -1,0 +1,8 @@
+# ISD Metrics Automation - Auto-run weekly and monthly reports
+# Weekly: Every Monday at 9 AM ET
+# Runs dashboard (generates cache + posts to Confluence/Slack) then analyst report
+0 9 * * 1 cd ~/isd-metrics-automation && ./run-weekly.sh >> ~/isd-metrics-automation/logs/weekly-$(date +\%Y\%m\%d).log 2>&1 && ./run-weekly-analyst.sh >> ~/isd-metrics-automation/logs/weekly-analyst-$(date +\%Y\%m\%d).log 2>&1
+
+# Monthly: 1st of every month at 9 AM ET
+# Runs dashboard (generates cache + posts to Confluence/Slack) then analyst report
+0 9 1 * * cd ~/isd-metrics-automation && ./run-monthly.sh >> ~/isd-metrics-automation/logs/monthly-$(date +\%Y\%m\%d).log 2>&1 && ./run-monthly-analyst.sh >> ~/isd-metrics-automation/logs/monthly-analyst-$(date +\%Y\%m\%d).log 2>&1

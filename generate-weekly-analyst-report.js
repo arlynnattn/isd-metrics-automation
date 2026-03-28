@@ -7,6 +7,17 @@
 
 const https = require('https');
 const fs = require('fs');
+const { loadWeeklyMetrics } = require('./save-metrics-to-json');
+const {
+  compareToTarget,
+  formatTime,
+  parseFormattedTime,
+  getDataQualityIssues,
+  getNarrativeConfidence,
+  calculateAdjustedMetrics,
+  generateValidationStatusBlock
+} = require('./shared-metrics');
+const { loadValidationResults } = require('./validate-metrics');
 
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
@@ -64,6 +75,17 @@ function makeRequest(hostname, path, method = 'GET', data = null, additionalHead
 function generateAnalystReportHTML(currentMetrics, previousMetrics) {
   const timestamp = new Date().toLocaleString();
 
+  // Parse TTFR/TTR from formatted strings to raw hours if needed
+  const currentTTFR = typeof currentMetrics.avgTTFR === 'string' ? parseFormattedTime(currentMetrics.avgTTFR) || parseFloat(currentMetrics.avgTTFR) : parseFloat(currentMetrics.avgTTFR);
+  const currentTTR = typeof currentMetrics.avgTTR === 'string' ? parseFormattedTime(currentMetrics.avgTTR) || parseFloat(currentMetrics.avgTTR) : parseFloat(currentMetrics.avgTTR);
+
+  // Use shared-metrics module for target comparisons
+  const ttfrComparison = compareToTarget('ttfr', currentTTFR);
+  const ttrComparison = compareToTarget('ttr', currentTTR);
+  const slaComparison = compareToTarget('slaPercent', parseFloat(currentMetrics.overallSlaPercent));
+  const csatComparison = compareToTarget('csat', parseFloat(currentMetrics.csat.avgScore));
+  const automationComparison = compareToTarget('automationPercent', parseFloat(currentMetrics.automationPercent));
+
   // Calculate key changes
   const volumeChange = currentMetrics.resolvedCount - previousMetrics.resolvedCount;
   const volumeChangePercent = previousMetrics.resolvedCount > 0
@@ -72,6 +94,123 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
 
   const slaChange = parseFloat(currentMetrics.overallSlaPercent) - parseFloat(previousMetrics.overallSlaPercent);
 
+  // Check for data quality issues
+  const dataQualityIssues = getDataQualityIssues(
+    new Date(currentMetrics.start),
+    new Date(currentMetrics.end)
+  );
+
+  // Get validation results
+  const validationResults = loadValidationResults();
+  const weeklyValidation = validationResults.weekly || { valid: true, errors: [], warnings: [] };
+
+  // Generate validation status block
+  const validationStatus = generateValidationStatusBlock(weeklyValidation, dataQualityIssues);
+
+  // Calculate adjusted metrics if anomalies exist
+  const adjustedMetricsData = calculateAdjustedMetrics(
+    { avgTTFR: currentTTFR, avgTTR: currentTTR, overallSlaPercent: currentMetrics.overallSlaPercent },
+    dataQualityIssues
+  );
+
+  // Get narrative confidence level
+  const narrativeConfidence = getNarrativeConfidence(dataQualityIssues, ['avgTTFR', 'avgTTR', 'slaPercent']);
+
+  // Build adjusted metrics section if applicable
+  let adjustedMetricsSection = '';
+  if (adjustedMetricsData.hasAdjustedMetrics) {
+    const adj = adjustedMetricsData.adjusted;
+    const adjTTFRComparison = compareToTarget('ttfr', adj.avgTTFR);
+    const adjTTRComparison = compareToTarget('ttr', adj.avgTTR);
+
+    adjustedMetricsSection = `
+<div style="border: 2px solid #4a90e2; background-color: #f0f8ff; padding: 15px; margin: 20px 0; border-radius: 5px;">
+<h2>📊 Raw vs Adjusted Metrics</h2>
+<p><strong>Data Quality Notice:</strong> This period includes a known anomaly. Both raw (system-of-record) and adjusted (anomaly-excluded) metrics are provided.</p>
+
+<h3>Time to First Response (TTFR)</h3>
+<table style="width: 100%; border-collapse: collapse;">
+  <tr style="background-color: #e8f4f8;">
+    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Metric Type</th>
+    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Value</th>
+    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">vs Target</th>
+  </tr>
+  <tr>
+    <td style="padding: 8px; border: 1px solid #ddd;"><strong>Raw (System of Record)</strong></td>
+    <td style="padding: 8px; border: 1px solid #ddd;">${formatTime(currentTTFR)}</td>
+    <td style="padding: 8px; border: 1px solid #ddd;">${ttfrComparison.emoji} ${ttfrComparison.description}</td>
+  </tr>
+  <tr>
+    <td style="padding: 8px; border: 1px solid #ddd;"><strong>Adjusted (Anomaly Excluded)</strong></td>
+    <td style="padding: 8px; border: 1px solid #ddd;">${formatTime(adj.avgTTFR)}</td>
+    <td style="padding: 8px; border: 1px solid #ddd;">${adjTTFRComparison.emoji} ${adjTTFRComparison.description}</td>
+  </tr>
+</table>
+
+<h3>Time to Resolution (TTR)</h3>
+<table style="width: 100%; border-collapse: collapse;">
+  <tr style="background-color: #e8f4f8;">
+    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Metric Type</th>
+    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Value</th>
+    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">vs Target</th>
+  </tr>
+  <tr>
+    <td style="padding: 8px; border: 1px solid #ddd;"><strong>Raw (System of Record)</strong></td>
+    <td style="padding: 8px; border: 1px solid #ddd;">${formatTime(currentTTR)}</td>
+    <td style="padding: 8px; border: 1px solid #ddd;">${ttrComparison.emoji} ${ttrComparison.description}</td>
+  </tr>
+  <tr>
+    <td style="padding: 8px; border: 1px solid #ddd;"><strong>Adjusted (Anomaly Excluded)</strong></td>
+    <td style="padding: 8px; border: 1px solid #ddd;">${formatTime(adj.avgTTR)}</td>
+    <td style="padding: 8px; border: 1px solid #ddd;">${adjTTRComparison.emoji} ${adjTTRComparison.description}</td>
+  </tr>
+</table>
+
+<p><strong>Adjustment Method:</strong> ${adjustedMetricsData.method || 'Statistical approximation'}</p>
+<p><strong>Assumption:</strong> ${adjustedMetricsData.assumption}</p>
+<p><strong>Confidence:</strong> ${adjustedMetricsData.confidence}</p>
+<p><em>Note: ${adjustedMetricsData.disclaimer}</em></p>
+</div>
+
+<hr />
+`;
+  }
+
+  // Build data quality warning section if issues exist (legacy format, keep for backward compat)
+  let dataQualitySection = '';
+  if (dataQualityIssues.length > 0 && !adjustedMetricsData.hasAdjustedMetrics) {
+    dataQualitySection = `
+<div style="border: 2px solid #ff6b6b; background-color: #fff5f5; padding: 15px; margin: 20px 0; border-radius: 5px;">
+<h2>⚠️ DATA QUALITY EXCEPTION</h2>
+`;
+    for (const issue of dataQualityIssues) {
+      dataQualitySection += `
+<h3>${issue.title}</h3>
+<p><strong>Date:</strong> ${issue.date}</p>
+<p><strong>Impact:</strong> ${issue.description}</p>
+<p><strong>Affected Metrics:</strong> ${issue.affectedMetrics.join(', ')}</p>
+<p><strong>⚠️ Recommendation:</strong> ${issue.recommendation}</p>
+`;
+    }
+    dataQualitySection += `</div>
+
+<hr />
+`;
+  }
+
+  // Determine which metrics to use for narrative (adjusted if available, raw otherwise)
+  const narrativeTTFR = adjustedMetricsData.hasAdjustedMetrics ? adjustedMetricsData.adjusted.avgTTFR : currentTTFR;
+  const narrativeTTR = adjustedMetricsData.hasAdjustedMetrics ? adjustedMetricsData.adjusted.avgTTR : currentTTR;
+  const narrativeTTFRComparison = adjustedMetricsData.hasAdjustedMetrics ? compareToTarget('ttfr', adjustedMetricsData.adjusted.avgTTFR) : ttfrComparison;
+  const narrativeTTRComparison = adjustedMetricsData.hasAdjustedMetrics ? compareToTarget('ttr', adjustedMetricsData.adjusted.avgTTR) : ttrComparison;
+
+  // Narrative prefix based on confidence level
+  const confidenceNote = narrativeConfidence.level === 'limited'
+    ? '<p><strong>📊 Interpretation Guidance:</strong> ' + narrativeConfidence.guidance + '</p>'
+    : narrativeConfidence.level === 'cautious'
+    ? '<p><strong>📊 Note:</strong> ' + narrativeConfidence.guidance + '</p>'
+    : '';
+
   return `
 <h1>IT Ops Weekly Analyst Report</h1>
 <p><em>Period: ${currentMetrics.period} | Generated: ${timestamp}</em></p>
@@ -79,14 +218,27 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
 
 <hr />
 
+${validationStatus.html}
+
+<hr />
+
+${adjustedMetricsSection}
+
+${dataQualitySection}
+
 <h2>1. Executive Summary</h2>
+
+${confidenceNote}
+
 <ul>
   <li><strong>Volume:</strong> IT resolved ${currentMetrics.resolvedCount} tickets this week (${volumeChangePercent > 0 ? '+' : ''}${volumeChangePercent}% WoW), ${currentMetrics.createdCount} created</li>
-  <li><strong>SLA Performance:</strong> ${currentMetrics.overallSlaPercent}% SLA achievement (${slaChange > 0 ? '+' : ''}${slaChange.toFixed(1)}pp WoW)</li>
-  <li><strong>Customer Satisfaction:</strong> CSAT ${currentMetrics.csat.avgScore}/5.0 from ${currentMetrics.csat.totalResponses} reviews</li>
-  <li><strong>Automation:</strong> ${currentMetrics.automationPercent}% of tickets handled without human intervention</li>
+  <li><strong>SLA Performance:</strong> ${currentMetrics.overallSlaPercent}% SLA achievement (${slaChange > 0 ? '+' : ''}${slaChange.toFixed(1)}pp WoW) - ${slaComparison.emoji} ${slaComparison.description}</li>
+  <li><strong>Customer Satisfaction:</strong> CSAT ${currentMetrics.csat.avgScore}/5.0 from ${currentMetrics.csat.totalResponses} reviews - ${csatComparison.emoji} ${csatComparison.description}</li>
+  <li><strong>Automation:</strong> ${currentMetrics.automationPercent}% of tickets handled without human intervention - ${automationComparison.emoji} ${automationComparison.description}</li>
   <li><strong>Workforce Impact:</strong> ${currentMetrics.workforce?.totalOnboarding || 0} onboarded (${currentMetrics.workforce?.fteOnboarding || 0} FTE, ${currentMetrics.workforce?.contractorOnboarding || 0} contractors), ${currentMetrics.workforce?.offboarding || 0} offboarded</li>
 </ul>
+
+${adjustedMetricsData.hasAdjustedMetrics ? '<p><strong>📊 Metrics Interpretation:</strong> Raw metrics show elevated time values due to a known anomaly. Adjusted metrics (excluding anomaly-affected tickets) indicate service performance remained within expected ranges. See "Raw vs Adjusted Metrics" section above.</p>' : ''}
 
 <hr />
 
@@ -97,9 +249,10 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
 <p><strong>Week-over-Week:</strong> ${volumeChange > 0 ? 'Increased' : 'Decreased'} by ${Math.abs(volumeChange)} tickets (${Math.abs(volumeChangePercent)}%)</p>
 
 <h3>Performance Trends</h3>
+${adjustedMetricsData.hasAdjustedMetrics ? '<p><em>Note: Time metrics use adjusted values (anomaly-excluded) for accurate interpretation</em></p>' : ''}
 <ul>
-  <li><strong>TTFR:</strong> ${currentMetrics.avgTTFR} avg (target: 2h) - ${parseFloat(currentMetrics.avgTTFR) <= 2 ? '✅ Within SLA' : '⚠️ Above target'}</li>
-  <li><strong>TTR:</strong> ${currentMetrics.avgTTR} avg (target: 16h) - ${parseFloat(currentMetrics.avgTTR.replace(/[^0-9.]/g, '')) <= 16 ? '✅ Within SLA' : '⚠️ Above target'}</li>
+  <li><strong>TTFR:</strong> ${formatTime(narrativeTTFR)} avg (target: 2h) - ${narrativeTTFRComparison.emoji} ${narrativeTTFRComparison.description}${adjustedMetricsData.hasAdjustedMetrics ? ' (adjusted)' : ''}</li>
+  <li><strong>TTR:</strong> ${formatTime(narrativeTTR)} avg (target: 16h) - ${narrativeTTRComparison.emoji} ${narrativeTTRComparison.description}${adjustedMetricsData.hasAdjustedMetrics ? ' (adjusted)' : ''}</li>
   <li><strong>SLA Breaches:</strong> ${currentMetrics.slaBreachCount} tickets (${currentMetrics.slaBreachPercent}% breach rate)</li>
 </ul>
 
@@ -117,7 +270,7 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
 <h3>Current Risks</h3>
 <ul>
   <li><strong>SLA Exposure:</strong> ${currentMetrics.slaBreachCount} breaches this week - review approval workflows and dependencies</li>
-  <li><strong>Automation Rate:</strong> ${currentMetrics.automationPercent}% - ${parseFloat(currentMetrics.automationPercent) < 5 ? '⚠️ Below target, opportunity to expand coverage' : '✅ Healthy automation coverage'}</li>
+  <li><strong>Automation Rate:</strong> ${currentMetrics.automationPercent}% - ${automationComparison.status === 'below' ? '⚠️ Below target, opportunity to expand coverage' : '✅ Healthy automation coverage'}</li>
   <li><strong>Volume vs Capacity:</strong> ${currentMetrics.createdCount > currentMetrics.resolvedCount ? '⚠️ Backlog growing - monitor capacity constraints' : '✅ Keeping pace with demand'}</li>
 </ul>
 
@@ -132,9 +285,10 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
 <h2>4. Root Cause Analysis</h2>
 
 <h3>SLA Breach Drivers</h3>
+${narrativeConfidence.level !== 'confident' ? '<p><em>Note: Time-based metrics affected by known data quality issue. Analysis uses adjusted metrics where available.</em></p>' : ''}
 <p><strong>Within IT Control:</strong></p>
 <ul>
-  <li>Response time: ${currentMetrics.avgTTFR} (${parseFloat(currentMetrics.avgTTFR) > 2 ? 'above 2h target - review staffing and round robin' : 'meeting target'})</li>
+  <li>Response time: ${formatTime(narrativeTTFR)} ${adjustedMetricsData.hasAdjustedMetrics ? '(adjusted) ' : ''}(${narrativeTTFRComparison.status === 'above' ? 'above 2h target - review staffing and round robin' : 'meeting target'})</li>
   <li>Resolution efficiency: Automated tickets resolve faster (review manual workflow bottlenecks)</li>
 </ul>
 
@@ -174,25 +328,6 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
   <li>If automation rate < 5%: Investment in automation tooling/development time</li>
   <li>If workforce net change is negative: Monitor impact on service levels and capacity planning</li>
 </ul>
-
-<hr />
-
-<h2>6. Weekly Notables</h2>
-<p><strong>Significant incidents, issues, or events from this week:</strong></p>
-
-<h3>Mar 17, 2026 - Ticket Clock Cleanup (Metrics Impact)</h3>
-<p><strong>Issue:</strong> Slack alerts triggered for old 2024 tickets with time clocks still running</p>
-<ul>
-  <li><strong>Impact:</strong> 221+ canceled/old tickets had active time tracking, causing confusion and alerts</li>
-  <li><strong>Metrics Impact:</strong> ⚠️ <strong>Skewed TTR and time tracking data</strong> - cleanup of old running clocks affected weekly/monthly averages</li>
-  <li><strong>Root Cause:</strong> Time clocks not automatically stopped when tickets were canceled by automation or reporters</li>
-  <li><strong>Resolution:</strong> Manual cleanup initiated - correcting time tracking on old tickets</li>
-  <li><strong>Risk:</strong> Mass updates may trigger notifications to all ticket participants (reporters, watchers)</li>
-  <li><strong>Action Item:</strong> Review automation workflows to ensure time tracking stops when tickets are canceled</li>
-  <li><strong>Data Quality:</strong> Consider normalizing metrics for this period or adding footnote to reports about data cleanup impact</li>
-</ul>
-
-<p><em>Add new notables each week to track incidents, changes, and important events</em></p>
 
 <hr />
 
@@ -254,37 +389,34 @@ async function updateConfluencePage(html) {
 }
 
 /**
- * Fetch weekly metrics data (simplified - reuse logic from weekly script)
+ * Fetch weekly metrics data from cache
+ * Loads real data generated by ./run-weekly.sh
  */
 async function fetchWeeklyMetrics() {
-  // This uses sample data for now
-  // TODO: Integrate with actual weekly metrics collection
-  console.log('⚠️  Note: Using sample data for now');
-  console.log('Run ./run-weekly.sh first to collect latest metrics\n');
+  console.log('Loading weekly metrics from cache...');
 
-  return {
-    period: 'Mar 20-27, 2026',
-    resolvedCount: 137,
-    createdCount: 145,
-    overallSlaPercent: '95.4',
-    avgTTFR: '24m',
-    avgTTR: '8h 15m',
-    slaBreachCount: 6,
-    slaBreachPercent: '4.6',
-    automationPercent: '1.5',
-    accessRequestCount: 78,
-    csat: { avgScore: '5.00', totalResponses: 19 },
-    workforce: { fteOnboarding: 4, contractorOnboarding: 3, totalOnboarding: 7, offboarding: 6, netChange: 1 },
-    departmentBreakdown: [['Engineering', 46], ['Sales', 20]],
-    saasAppCounts: [['ChatGPT', 7], ['Snowflake', 5]]
-  };
+  try {
+    const data = loadWeeklyMetrics();
+    console.log(`✓ Loaded metrics from ${new Date(data.timestamp).toLocaleString()}\n`);
+
+    return {
+      current: data.currentWeek,
+      previous: data.previousWeek
+    };
+  } catch (error) {
+    console.error('✗ Error loading metrics:', error.message);
+    console.error('\n⚠️  You must run ./run-weekly.sh FIRST to generate metrics data.');
+    console.error('   The analyst report consumes data from the weekly dashboard script.');
+    process.exit(1);
+  }
 }
 
 async function main() {
   console.log('=== Weekly IT Ops Analyst Report Generator ===\n');
 
-  const currentMetrics = await fetchWeeklyMetrics();
-  const previousMetrics = await fetchWeeklyMetrics(); // Would fetch previous week
+  const metricsData = await fetchWeeklyMetrics();
+  const currentMetrics = metricsData.current;
+  const previousMetrics = metricsData.previous;
 
   const html = generateAnalystReportHTML(currentMetrics, previousMetrics);
 

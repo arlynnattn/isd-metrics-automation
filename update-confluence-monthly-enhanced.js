@@ -9,6 +9,7 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { saveMonthlyMetrics } = require('./save-metrics-to-json');
 
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
@@ -1114,7 +1115,9 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
 }
 
 /**
- * Calculate MoM change percentage
+ * Calculate MoM change percentage with correct arrow direction
+ * For lower-is-better metrics (TTFR, TTR): ↓ is good (green), ↑ is bad (red)
+ * For higher-is-better metrics (SLA%, CSAT): ↑ is good (green), ↓ is bad (red)
  */
 function calculateMoMChange(oldValue, newValue, isLowerBetter = false) {
   if (oldValue === 'N/A' || newValue === 'N/A' || oldValue === 0) return 'N/A';
@@ -1126,9 +1129,11 @@ function calculateMoMChange(oldValue, newValue, isLowerBetter = false) {
 
   let arrow;
   if (change > 0) {
-    arrow = isLowerBetter ? '↑' : '↑';
+    // Value increased: ↑ for lower-is-better shows direction (bad), ↑ for higher-is-better shows direction (good)
+    arrow = '↑';
   } else if (change < 0) {
-    arrow = isLowerBetter ? '↓' : '↓';
+    // Value decreased: ↓ for lower-is-better shows direction (good), ↓ for higher-is-better shows direction (bad)
+    arrow = '↓';
   } else {
     arrow = '→';
   }
@@ -1248,6 +1253,13 @@ async function main() {
 
     currentMetrics.workforce = currentWorkforce;
     previousMetrics.workforce = previousWorkforce;
+
+    // Save metrics to JSON for analyst report consumption
+    try {
+      saveMonthlyMetrics(currentMetrics, previousMetrics, months);
+    } catch (error) {
+      console.warn('⚠️  Warning: Failed to save metrics cache:', error.message);
+    }
 
     // Generate HTML
     const html = generateConfluenceHTML(currentMetrics, previousMetrics, months.currentMonth, months.previousMonth);

@@ -13,6 +13,10 @@ echo "🔄 Generating ISD Weekly Metrics Report..."
 node update-confluence-weekly.js
 
 echo ""
-echo "✅ Done! Report saved to Desktop."
+echo "📤 Posting metrics summary to Slack..."
+node post-weekly-metrics.js
+
+echo ""
+echo "✅ Done! Report saved to Desktop and posted to Slack."
 echo "📋 Next step: Copy HTML from Desktop and paste into Confluence"
 echo "🔗 Weekly Confluence page: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982"

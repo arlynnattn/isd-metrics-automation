@@ -1,20 +1,32 @@
 # ISD Metrics Automation
 
-Automated reporting for IT Ops metrics from Jira Service Desk, matching the monthly leadership dashboard.
+**Semi-automated** reporting for IT Ops metrics from Jira Service Desk, matching the monthly leadership dashboard.
 
 ## ✅ Features
 
 **Automated Data Collection:**
-- Jira ticket metrics (created, resolved, SLA performance)
-- Slack #ask-it channel activity  
-- CSAT scores from Jira
-- Department breakdown
-- Top SaaS application requests
-- Business hours SLA calculations (9-6 PM ET, Mon-Fri)
+- ✅ Jira ticket metrics (created, resolved, SLA performance) - API-driven
+- ✅ Slack #ask-it channel activity - API-driven
+- ✅ CSAT scores from Jira - API-driven
+- ✅ Department breakdown - API-driven
+- ✅ Top SaaS application requests - API-driven
+- ✅ Business hours SLA calculations (9-6 PM ET, Mon-Fri) - Uses Jira SLA fields
 
-**Two Report Types:**
-- **Weekly Report**: Last 7 days (uses `-7d` filter matching Jira)
-- **Monthly Report**: Current month to date
+**Report Types:**
+- **Weekly Data Report**: Last 7 days metrics - saves to Desktop (manual Confluence paste required)
+- **Monthly Data Report**: Current month metrics - saves to Desktop (manual Confluence paste required)
+- **Weekly Analyst Report**: Executive analysis - automatically updates Confluence
+- **Monthly Analyst Report**: Strategic insights - automatically updates Confluence
+- **Automation Overview**: Week-over-week automation metrics - automatically updates Confluence
+
+## ⚠️ Current Automation State
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| Data Collection | ✅ Fully Automated | Fetches from Jira/Slack APIs |
+| Dashboard Generation | ✅ Fully Automated | Creates HTML reports |
+| Confluence Publishing | ⚠️ Semi-Automated | Analyst reports auto-publish; data reports require manual copy-paste |
+| Data Consistency | ✅ Integrated | Analyst reports now consume dashboard data (fixed as of 2026-03-28) |
 
 ## 🚀 Quick Start
 
