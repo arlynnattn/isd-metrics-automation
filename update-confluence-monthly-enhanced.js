@@ -385,14 +385,18 @@ async function countWorkforceChanges(jqlFilter, label, isRange = false) {
   // Build base resolution date filter (always prepend "resolutiondate")
   const dateFilter = `resolutiondate ${jqlFilter}`;
 
-  // FTE Onboarding: CLONE - IT Support Onboarding from Greenhouse or Sapling
-  const fteOnboardingJql = `project = ISD AND summary ~ "CLONE - IT Support Onboarding" AND reporter in ("jira-greenhouse@attentivemobile.com", "jira-sapling@attentivemobile.com") AND ${dateFilter}`;
+  // FTE Onboarding: Calendar event requests (type = Onboarding, NOT CLONE tickets)
+  // These are human-created onboarding requests that become calendar events
+  const fteOnboardingJql = `project = ISD AND type = Onboarding AND summary !~ "CLONE" AND summary !~ "Contractor" AND ${dateFilter}`;
 
-  // Contractor Onboarding: CLONE - Contractor Onboarding
+  // Contractor Onboarding: CLONE - Contractor Onboarding (automated tickets, no calendar events)
   const contractorOnboardingJql = `project = ISD AND summary ~ "CLONE - Contractor Onboarding" AND ${dateFilter}`;
 
-  // Offboarding: CLONE - Device IT Offboarding from Sapling
-  const offboardingJql = `project = ISD AND summary ~ "CLONE - Device IT Offboarding" AND reporter = "jira-sapling@attentivemobile.com" AND ${dateFilter}`;
+  // FTE Offboarding: CLONE - Device IT Offboarding from Sapling
+  const fteOffboardingJql = `project = ISD AND summary ~ "CLONE - Device" AND reporter = "jira-sapling@attentivemobile.com" AND ${dateFilter}`;
+
+  // Contractor Offboarding: CLONE - Contractor Offboarding (human reporters, not automation)
+  const contractorOffboardingJql = `project = ISD AND summary ~ "CLONE - Contractor Offboarding" AND ${dateFilter}`;
 
   // Fetch FTE onboarding tickets
   let fteOnboardingIssues = [];
@@ -434,13 +438,13 @@ async function countWorkforceChanges(jqlFilter, label, isRange = false) {
     nextPageToken = response.nextPageToken;
   }
 
-  // Fetch offboarding tickets
-  let offboardingIssues = [];
+  // Fetch FTE offboarding tickets
+  let fteOffboardingIssues = [];
   nextPageToken = null;
   isLast = false;
 
   while (!isLast) {
-    let path = `/rest/api/3/search/jql?jql=${encodeURIComponent(offboardingJql)}&maxResults=1000&fields=key`;
+    let path = `/rest/api/3/search/jql?jql=${encodeURIComponent(fteOffboardingJql)}&maxResults=1000&fields=key`;
     if (nextPageToken) {
       path += `&nextPageToken=${encodeURIComponent(nextPageToken)}`;
     }
@@ -449,20 +453,45 @@ async function countWorkforceChanges(jqlFilter, label, isRange = false) {
       'Authorization': JIRA_AUTH_HEADER
     });
 
-    offboardingIssues = offboardingIssues.concat(response.issues || []);
+    fteOffboardingIssues = fteOffboardingIssues.concat(response.issues || []);
+    isLast = response.isLast !== false;
+    nextPageToken = response.nextPageToken;
+  }
+
+  // Fetch contractor offboarding tickets
+  let contractorOffboardingIssues = [];
+  nextPageToken = null;
+  isLast = false;
+
+  while (!isLast) {
+    let path = `/rest/api/3/search/jql?jql=${encodeURIComponent(contractorOffboardingJql)}&maxResults=1000&fields=key`;
+    if (nextPageToken) {
+      path += `&nextPageToken=${encodeURIComponent(nextPageToken)}`;
+    }
+
+    const response = await makeRequest(JIRA_BASE_URL, path, 'GET', null, {
+      'Authorization': JIRA_AUTH_HEADER
+    });
+
+    contractorOffboardingIssues = contractorOffboardingIssues.concat(response.issues || []);
     isLast = response.isLast !== false;
     nextPageToken = response.nextPageToken;
   }
 
   const totalOnboarding = fteOnboardingIssues.length + contractorOnboardingIssues.length;
-  console.log(`  Found ${fteOnboardingIssues.length} FTE onboardings, ${contractorOnboardingIssues.length} contractor onboardings, ${offboardingIssues.length} offboardings`);
+  const totalOffboarding = fteOffboardingIssues.length + contractorOffboardingIssues.length;
+
+  console.log(`  Found ${fteOnboardingIssues.length} FTE onboardings, ${contractorOnboardingIssues.length} contractor onboardings`);
+  console.log(`  Found ${fteOffboardingIssues.length} FTE offboardings, ${contractorOffboardingIssues.length} contractor offboardings`);
 
   return {
     fteOnboarding: fteOnboardingIssues.length,
     contractorOnboarding: contractorOnboardingIssues.length,
     totalOnboarding: totalOnboarding,
-    offboarding: offboardingIssues.length,
-    netChange: totalOnboarding - offboardingIssues.length
+    fteOffboarding: fteOffboardingIssues.length,
+    contractorOffboarding: contractorOffboardingIssues.length,
+    offboarding: totalOffboarding,
+    netChange: totalOnboarding - totalOffboarding
   };
 }
 
@@ -1248,8 +1277,8 @@ async function main() {
     console.log('\nCounting workforce changes...');
     const currentWorkforce = await countWorkforceChanges(months.currentMonth.jqlFilter, months.currentMonth.label, false);
     const previousWorkforce = await countWorkforceChanges(months.previousMonth.jqlFilterRange, months.previousMonth.label, true);
-    console.log(`Current month: ${currentWorkforce.fteOnboarding} FTE + ${currentWorkforce.contractorOnboarding} contractors onboarded, ${currentWorkforce.offboarding} offboarded`);
-    console.log(`Previous month: ${previousWorkforce.fteOnboarding} FTE + ${previousWorkforce.contractorOnboarding} contractors onboarded, ${previousWorkforce.offboarding} offboarded`);
+    console.log(`Current month: ${currentWorkforce.fteOnboarding} FTE + ${currentWorkforce.contractorOnboarding} contractors onboarded, ${currentWorkforce.fteOffboarding} FTE + ${currentWorkforce.contractorOffboarding} contractors offboarded`);
+    console.log(`Previous month: ${previousWorkforce.fteOnboarding} FTE + ${previousWorkforce.contractorOnboarding} contractors onboarded, ${previousWorkforce.fteOffboarding} FTE + ${previousWorkforce.contractorOffboarding} contractors offboarded`);
 
     currentMetrics.workforce = currentWorkforce;
     previousMetrics.workforce = previousWorkforce;
