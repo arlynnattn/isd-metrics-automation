@@ -385,9 +385,12 @@ async function countWorkforceChanges(jqlFilter, label, isRange = false) {
   // Build base resolution date filter (always prepend "resolutiondate")
   const dateFilter = `resolutiondate ${jqlFilter}`;
 
-  // FTE Onboarding: Calendar event requests (type = Onboarding, NOT CLONE tickets)
-  // These are human-created onboarding requests that become calendar events
-  const fteOnboardingJql = `project = ISD AND type = Onboarding AND summary !~ "CLONE" AND summary !~ "Contractor" AND ${dateFilter}`;
+  // FTE Onboarding: CLONE - IT Support Onboarding from Greenhouse or Sapling (PRIMARY SOURCE)
+  // These are automated tickets from HR systems, more reliable than manual calendar events
+  const fteOnboardingJql = `project = ISD AND summary ~ "CLONE - IT Support Onboarding" AND reporter in ("jira-greenhouse@attentivemobile.com", "jira-sapling@attentivemobile.com") AND ${dateFilter}`;
+
+  // FTE Onboarding Verification: Calendar event requests (for data quality check)
+  const fteOnboardingVerificationJql = `project = ISD AND type = Onboarding AND summary !~ "CLONE" AND summary !~ "Contractor" AND ${dateFilter}`;
 
   // Contractor Onboarding: CLONE - Contractor Onboarding (automated tickets, no calendar events)
   const contractorOnboardingJql = `project = ISD AND summary ~ "CLONE - Contractor Onboarding" AND ${dateFilter}`;
@@ -416,6 +419,41 @@ async function countWorkforceChanges(jqlFilter, label, isRange = false) {
     fteOnboardingIssues = fteOnboardingIssues.concat(response.issues || []);
     isLast = response.isLast !== false;
     nextPageToken = response.nextPageToken;
+  }
+
+  // Fetch FTE onboarding verification (calendar events) for data quality check
+  let fteOnboardingVerificationIssues = [];
+  nextPageToken = null;
+  isLast = false;
+
+  while (!isLast) {
+    let path = `/rest/api/3/search/jql?jql=${encodeURIComponent(fteOnboardingVerificationJql)}&maxResults=1000&fields=key`;
+    if (nextPageToken) {
+      path += `&nextPageToken=${encodeURIComponent(nextPageToken)}`;
+    }
+
+    const response = await makeRequest(JIRA_BASE_URL, path, 'GET', null, {
+      'Authorization': JIRA_AUTH_HEADER
+    });
+
+    fteOnboardingVerificationIssues = fteOnboardingVerificationIssues.concat(response.issues || []);
+    isLast = response.isLast !== false;
+    nextPageToken = response.nextPageToken;
+  }
+
+  // Verify FTE onboarding count against calendar events
+  const cloneCount = fteOnboardingIssues.length;
+  const calendarCount = fteOnboardingVerificationIssues.length;
+  const discrepancy = Math.abs(cloneCount - calendarCount);
+  const discrepancyPct = cloneCount > 0 ? (discrepancy / cloneCount * 100).toFixed(1) : 0;
+
+  if (discrepancy > 0) {
+    console.log(`  ⚠️  FTE Onboarding verification: CLONE=${cloneCount}, Calendar=${calendarCount} (diff: ${discrepancy}, ${discrepancyPct}%)`);
+    if (discrepancyPct > 10) {
+      console.log(`  ⚠️  WARNING: Discrepancy exceeds 10% - may indicate data quality issue`);
+    }
+  } else {
+    console.log(`  ✅ FTE Onboarding verification: CLONE and Calendar match (${cloneCount})`);
   }
 
   // Fetch contractor onboarding tickets
