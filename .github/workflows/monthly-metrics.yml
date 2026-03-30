@@ -27,6 +27,21 @@ jobs:
         run: |
           node update-confluence-monthly.js
 
+      - name: Post to Slack
+        if: success()
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: |
+          MONTH=$(date -u +"%B %Y")
+          curl -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"channel\": \"itops-metric-reporting\",
+              \"text\": \"✅ *ISD Monthly Metrics Updated*\n📅 $MONTH\n\n📊 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689|View Confluence Dashboard>\",
+              \"unfurl_links\": false
+            }"
+
       - name: Notify on failure
         if: failure()
         run: |

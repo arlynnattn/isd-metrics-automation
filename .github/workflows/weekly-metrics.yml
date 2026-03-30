@@ -26,6 +26,21 @@ jobs:
         run: |
           node update-confluence-metrics.js
 
+      - name: Post to Slack
+        if: success()
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: |
+          WEEK_OF=$(date -u +"%m/%d/%Y")
+          curl -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"channel\": \"itops-metric-reporting\",
+              \"text\": \"✅ *ISD Weekly Metrics Updated*\n📅 Week of $WEEK_OF\n\n📊 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/5471371324|View Confluence Dashboard>\",
+              \"unfurl_links\": false
+            }"
+
       - name: Notify on failure
         if: failure()
         run: |
