@@ -393,7 +393,7 @@ function generateMonthlyMetricsHTML(metrics) {
   const current = metrics.currentMonth;
   const previous = metrics.previousMonth;
 
-  const timestamp = new Date().toLocaleString();
+  const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
 
   const resolvedChange = calculateMoMChange(previous.totalResolved, current.totalResolved);
   const ttfrChange = calculateMoMChange(previous.avgTTFR, current.avgTTFR);
