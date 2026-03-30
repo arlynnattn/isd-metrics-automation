@@ -1283,19 +1283,24 @@ async function main() {
     console.log(`  Avg TTR (Automated vs Human): ${formatTime(currentMetrics.avgAutomatedTTR)} vs ${formatTime(currentMetrics.avgHumanTTR)}`);
     console.log(`  Human Time Reclaimed: ${currentMetrics.humanTimeReclaimed} hours`);
 
-    // Output to file for review
-    const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
-    const outputPath = `/Users/arlynngalang/Desktop/ISD_Weekly_Metrics_${dateStr}.html`;
-    fs.writeFileSync(outputPath, html);
-    console.log(`\n✓ HTML output written to ${outputPath}`);
-    console.log('  Copy this HTML and paste into Confluence page editor');
+    // Output to file for review (skip in CI)
+    if (!process.env.CI) {
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const outputPath = `/Users/arlynngalang/Desktop/ISD_Weekly_Metrics_${dateStr}.html`;
+      fs.writeFileSync(outputPath, html);
+      console.log(`\n✓ HTML output written to ${outputPath}`);
+      console.log('  Copy this HTML and paste into Confluence page editor');
+    }
 
-    // Try to update Confluence page (optional)
+    // Try to update Confluence page
     console.log('\nAttempting Confluence update...');
     const pageTitle = 'ISD Weekly Metrics';
     const updated = await updateConfluencePage(CONFLUENCE_PAGE_ID, html, pageTitle);
-    if (!updated) {
+    if (!updated && !process.env.CI) {
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const outputPath = `/Users/arlynngalang/Desktop/ISD_Weekly_Metrics_${dateStr}.html`;
       console.log(`\n📋 Manual steps:`);
       console.log(`  1. Open: https://${JIRA_BASE_URL}/wiki/spaces/${CONFLUENCE_SPACE_KEY}/pages/${CONFLUENCE_PAGE_ID}`);
       console.log(`  2. Edit the page`);
