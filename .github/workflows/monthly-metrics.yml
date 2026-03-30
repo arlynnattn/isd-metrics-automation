@@ -19,13 +19,32 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Run monthly metrics update
+      - name: Run monthly metrics update (Main Dashboard)
         env:
           ATLASSIAN_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
           ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
-          node update-confluence-monthly.js
+          echo "📊 Step 1/3: Updating ISD Monthly Metrics Dashboard..."
+          node update-confluence-monthly-enhanced.js
+
+      - name: Update Monthly Analyst Report
+        if: success()
+        env:
+          ATLASSIAN_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
+          ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
+        run: |
+          echo "📝 Step 2/3: Updating Monthly Analyst Report..."
+          node generate-monthly-analyst-report.js
+
+      - name: Update Visual Slide Deck
+        if: success()
+        env:
+          ATLASSIAN_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
+          ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
+        run: |
+          echo "🎨 Step 3/3: Updating Visual Slide Deck..."
+          node update-visual-slide-deck.js
 
       - name: Post to Slack
         if: success()
@@ -38,7 +57,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{
               \"channel\": \"itops-metric-reporting\",
-              \"text\": \"✅ *ISD Monthly Metrics Updated*\n📅 $MONTH\n\n📊 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689|View Confluence Dashboard>\",
+              \"text\": \"✅ *ISD Monthly Metrics Updated - All Pages*\n📅 $MONTH\n\n📊 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689|Main Dashboard>\n📝 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6422003766|Monthly Analyst Report>\n🎨 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6440288277|Visual Slide Deck>\",
               \"unfurl_links\": false
             }"
 
