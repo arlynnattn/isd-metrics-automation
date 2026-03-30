@@ -23,8 +23,9 @@ jobs:
         env:
           ATLASSIAN_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
           ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
-          node update-confluence-metrics.js
+          node update-confluence-weekly.js
 
       - name: Post to Slack
         if: success()
@@ -37,7 +38,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{
               \"channel\": \"itops-metric-reporting\",
-              \"text\": \"✅ *ISD Weekly Metrics Updated*\n📅 Week of $WEEK_OF\n\n📊 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/5471371324|View Confluence Dashboard>\",
+              \"text\": \"✅ *ISD Weekly Metrics Updated*\n📅 Week of $WEEK_OF\n\n📊 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982|View Confluence Dashboard>\",
               \"unfurl_links\": false
             }"
 
