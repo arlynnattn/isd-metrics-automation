@@ -54,19 +54,19 @@ jobs:
           MONTH=$(date -u +"%B %Y")
 
           # Read metrics from cache file
-          CREATED=$(node -e "console.log(require('./metrics-cache-monthly.json').current.created)")
-          RESOLVED=$(node -e "console.log(require('./metrics-cache-monthly.json').current.resolved)")
-          TTFR=$(node -e "console.log(require('./metrics-cache-monthly.json').current.ttfr)")
-          TTR=$(node -e "console.log(require('./metrics-cache-monthly.json').current.ttr)")
-          SLA=$(node -e "console.log(require('./metrics-cache-monthly.json').current.slaMet)")
-          CSAT=$(node -e "console.log(require('./metrics-cache-monthly.json').current.csat)")
-          CSAT_COUNT=$(node -e "console.log(require('./metrics-cache-monthly.json').current.csatCount)")
-          AUTO_PCT=$(node -e "console.log(require('./metrics-cache-monthly.json').current.automationPct)")
-          AUTO_COUNT=$(node -e "console.log(require('./metrics-cache-monthly.json').current.automatedTickets)")
-          FTE_ON=$(node -e "console.log(require('./metrics-cache-monthly.json').current.fteOnboarding)")
-          CONT_ON=$(node -e "console.log(require('./metrics-cache-monthly.json').current.contractorOnboarding)")
-          FTE_OFF=$(node -e "console.log(require('./metrics-cache-monthly.json').current.fteOffboarding)")
-          CONT_OFF=$(node -e "console.log(require('./metrics-cache-monthly.json').current.contractorOffboarding)")
+          CREATED=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.createdCount)")
+          RESOLVED=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.resolvedCount)")
+          TTFR=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.avgTTFR + 'h')")
+          TTR=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.avgTTR + 'h')")
+          SLA=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.overallSlaPercent)")
+          CSAT=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.csat.avgScore)")
+          CSAT_COUNT=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.csat.totalResponses)")
+          AUTO_PCT=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.automationPercent)")
+          AUTO_COUNT=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.automatedCount)")
+          FTE_ON=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.workforce.fteOnboarding)")
+          CONT_ON=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.workforce.contractorOnboarding)")
+          FTE_OFF=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.workforce.fteOffboarding)")
+          CONT_OFF=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.workforce.contractorOffboarding)")
 
           curl -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \

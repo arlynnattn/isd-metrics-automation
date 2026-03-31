@@ -45,18 +45,18 @@ jobs:
           WEEK_OF=$(date -u +"%B %d, %Y")
 
           # Read metrics from cache file
-          CREATED=$(node -e "console.log(require('./metrics-cache-weekly.json').current.created)")
-          RESOLVED=$(node -e "console.log(require('./metrics-cache-weekly.json').current.resolved)")
-          TTFR=$(node -e "console.log(require('./metrics-cache-weekly.json').current.ttfr)")
-          TTR=$(node -e "console.log(require('./metrics-cache-weekly.json').current.ttr)")
-          SLA=$(node -e "console.log(require('./metrics-cache-weekly.json').current.slaMet)")
-          CSAT=$(node -e "console.log(require('./metrics-cache-weekly.json').current.csat)")
-          CSAT_COUNT=$(node -e "console.log(require('./metrics-cache-weekly.json').current.csatCount)")
-          AUTO_PCT=$(node -e "console.log(require('./metrics-cache-weekly.json').current.automationPct)")
-          AUTO_COUNT=$(node -e "console.log(require('./metrics-cache-weekly.json').current.automatedTickets)")
-          FTE_ON=$(node -e "console.log(require('./metrics-cache-weekly.json').current.fteOnboarding)")
-          CONT_ON=$(node -e "console.log(require('./metrics-cache-weekly.json').current.contractorOnboarding)")
-          OFFBOARD=$(node -e "console.log(require('./metrics-cache-weekly.json').current.offboarding)")
+          CREATED=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.createdCount)")
+          RESOLVED=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.resolvedCount)")
+          TTFR=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.avgTTFR + 'h')")
+          TTR=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.avgTTR + 'h')")
+          SLA=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.overallSlaPercent)")
+          CSAT=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.csat.avgScore)")
+          CSAT_COUNT=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.csat.totalResponses)")
+          AUTO_PCT=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.automationPercent)")
+          AUTO_COUNT=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.automatedCount)")
+          FTE_ON=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.workforce.fteOnboarding)")
+          CONT_ON=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.workforce.contractorOnboarding)")
+          OFFBOARD=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.workforce.offboarding)")
 
           curl -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
