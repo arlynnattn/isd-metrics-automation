@@ -2,8 +2,8 @@ name: Update ISD Metrics Weekly
 
 on:
   schedule:
-    # Run every Monday at 9:00 AM UTC (adjust timezone as needed)
-    - cron: '0 9 * * 1'
+    # Run every Monday at 1:00 PM UTC (9:00 AM ET)
+    - cron: '0 13 * * 1'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
@@ -19,13 +19,23 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Run metrics update
+      - name: Run weekly metrics update (Dashboard)
         env:
           ATLASSIAN_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
           ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
+          echo "📊 Step 1/2: Updating ISD Weekly Metrics Dashboard..."
           node update-confluence-weekly.js
+
+      - name: Update Weekly Analyst Report
+        if: success()
+        env:
+          ATLASSIAN_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
+          ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
+        run: |
+          echo "📝 Step 2/2: Updating Weekly Analyst Report..."
+          node generate-weekly-analyst-report.js
 
       - name: Post to Slack
         if: success()
@@ -38,7 +48,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{
               \"channel\": \"itops-metric-reporting\",
-              \"text\": \"✅ *ISD Weekly Metrics Updated*\n📅 Week of $WEEK_OF\n\n📊 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982|View Confluence Dashboard>\",
+              \"text\": \"✅ *ISD Weekly Metrics Updated - All Pages*\n📅 Week of $WEEK_OF\n\n📊 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982|Weekly Metrics Dashboard>\n📝 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6424363046|Weekly Analyst Report>\",
               \"unfurl_links\": false
             }"
 
