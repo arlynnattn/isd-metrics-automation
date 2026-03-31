@@ -1,0 +1,187 @@
+MONTHLY METRICS AUTOMATION - FULL SETUP COMPLETE
+================================================
+Completed: March 30, 2026
+GitHub Commit: 37ef7f8
+
+SCHEDULE: 1st of every month at 9:00 AM ET (1:00 PM UTC)
+========================================================================
+
+WHAT HAPPENS AUTOMATICALLY:
+========================================================================
+
+✅ Step 1: Main ISD Monthly Metrics Dashboard (6415089689)
+   Script: update-confluence-monthly-enhanced.js
+   Updates:
+   - Total tickets, resolution metrics (TTFR, TTR)
+   - CSAT scores and trends
+   - Department breakdown
+   - SaaS app tracking
+   - Workforce changes (CLONE tickets with calendar verification)
+   - Automation rate
+   - Saves all metrics to JSON for other scripts to use
+
+✅ Step 2: Monthly Analyst Report (6422003766)
+   Script: generate-monthly-analyst-report.js
+   Updates:
+   - Executive summary with key insights
+   - Business outcomes and recommendations
+   - Data quality controls
+   - Operations runbook
+   - Reads metrics from JSON saved by Step 1
+
+✅ Step 3: Visual Slide Deck (6440288277)
+   Script: update-visual-slide-deck.js [NEW!]
+   Updates:
+   - Slide deck with current month's metrics
+   - Auto-updates: tickets, TTFR, TTR, CSAT, automation rate
+   - Updates workforce data with FTE/contractor breakdown
+   - Updates page title to include current month
+   - Reads metrics from JSON saved by Step 1
+
+✅ Step 4: Slack Notification
+   Channel: #itops-metric-reporting
+   Message includes:
+   - "✅ ISD Monthly Metrics Updated - All Pages"
+   - Current month
+   - Links to all 3 updated Confluence pages
+
+========================================================================
+MANUAL TRIGGER (if needed):
+========================================================================
+
+You can manually run the workflow anytime from GitHub:
+1. Go to: https://github.com/arlynnattn/isd-metrics-automation/actions
+2. Click "Update ISD Metrics Monthly"
+3. Click "Run workflow" dropdown
+4. Select branch: main
+5. Click green "Run workflow" button
+
+This is useful for:
+- Testing after changes
+- Running early if 1st falls on weekend
+- Rerunning if automation fails
+
+========================================================================
+KEY IMPROVEMENTS:
+========================================================================
+
+1. ✅ Uses CLONE tickets for FTE onboarding (more reliable)
+   - Primary: 32 FTE from CLONE tickets
+   - Verification: 28 FTE from calendar events
+   - Logs warning if discrepancy > 10%
+
+2. ✅ Tracks contractor offboarding (was missing!)
+   - Now counts all 4 categories: FTE/contractor, onboard/offboard
+
+3. ✅ Consistent methodology
+   - All workforce data from CLONE tickets
+   - Uses REPORTER field (jira-sapling/greenhouse)
+   - Uses RESOLUTION date (when IT completed work)
+
+4. ✅ Full automation
+   - All 3 Confluence pages update automatically
+   - No manual work needed on 1st of month
+   - Slack notification keeps team informed
+
+========================================================================
+VALIDATED MARCH 2026 NUMBERS (used in automation):
+========================================================================
+
+Onboarding:
+- FTE: 32 (CLONE - IT Support Onboarding)
+- Contractors: 13 (CLONE - Contractor Onboarding)
+- Total: 45
+
+Offboarding:
+- FTE: 24 (CLONE - Device tickets)
+- Contractors: 5 (CLONE - Contractor Offboarding)
+- Total: 29
+
+Net Change: +16 (45 onboarded - 29 offboarded)
+
+========================================================================
+REQUIRED GITHUB SECRETS:
+========================================================================
+
+These must be configured in GitHub repo settings:
+
+✅ ATLASSIAN_EMAIL - Your Jira/Confluence email
+✅ ATLASSIAN_API_TOKEN - API token for Jira/Confluence access
+✅ SLACK_BOT_TOKEN - Bot token for posting to Slack
+
+To check/update:
+https://github.com/arlynnattn/isd-metrics-automation/settings/secrets/actions
+
+========================================================================
+MONITORING & MAINTENANCE:
+========================================================================
+
+1. Check Slack on 1st of month (~9:05am ET)
+   - Should see "✅ ISD Monthly Metrics Updated - All Pages" message
+   - If not, check GitHub Actions for errors
+
+2. Review GitHub Actions logs:
+   - https://github.com/arlynnattn/isd-metrics-automation/actions
+   - Look for "Update ISD Metrics Monthly" runs
+   - Green checkmark = success, Red X = failure
+
+3. Monthly verification checks:
+   - Check FTE onboarding discrepancy log
+   - If CLONE vs calendar differs by >10%, investigate
+   - Validate workforce numbers look reasonable
+
+4. What to do if automation fails:
+   - Check GitHub Actions logs for error message
+   - Verify GitHub secrets are still valid
+   - Check Confluence page permissions
+   - Can manually run scripts locally:
+     - node update-confluence-monthly-enhanced.js
+     - node generate-monthly-analyst-report.js
+     - node update-visual-slide-deck.js
+
+========================================================================
+FILES UPDATED IN THIS AUTOMATION:
+========================================================================
+
+1. update-visual-slide-deck.js [NEW]
+   - Auto-updates Visual Slide Deck page
+   - Reads metrics from JSON
+   - Updates all key metrics and workforce data
+
+2. .github/workflows/monthly-metrics.yml [UPDATED]
+   - Changed from update-confluence-monthly.js to update-confluence-monthly-enhanced.js
+   - Added generate-monthly-analyst-report.js step
+   - Added update-visual-slide-deck.js step
+   - Updated Slack notification with all 3 page links
+
+3. update-confluence-monthly-enhanced.js [PREVIOUSLY UPDATED]
+   - Uses CLONE tickets for FTE onboarding
+   - Includes contractor offboarding
+   - Calendar event verification
+   - Saves metrics to JSON for other scripts
+
+========================================================================
+NEXT SCHEDULED RUN:
+========================================================================
+
+Next run: April 1, 2026 at 9:00 AM ET
+
+The automation will:
+1. Collect all March 2026 metrics from Jira
+2. Update all 3 Confluence pages with March data
+3. Post Slack notification with links
+
+Visual Slide Deck title will be updated to:
+"IT Ops Metrics - Visual Slide Deck (March 2026)"
+
+========================================================================
+TESTING RECOMMENDATION:
+========================================================================
+
+Before April 1st, you may want to:
+1. Manually trigger the workflow once to test
+2. Verify all 3 pages update correctly
+3. Check Slack notification appears
+4. Review metrics look accurate
+
+This ensures everything works smoothly for the automated run.

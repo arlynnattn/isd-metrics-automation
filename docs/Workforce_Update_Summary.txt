@@ -1,0 +1,118 @@
+WORKFORCE COUNTING - UPDATE SUMMARY
+Completed: March 30, 2026
+========================================================================
+
+PROBLEM IDENTIFIED:
+- Manual count said "12 FTE, 4 contractors offboarded" but actual was much higher
+- Current automation was missing contractor offboarding entirely
+- FTE onboarding was counting CLONE tickets instead of calendar events
+- Confusion between CREATED date vs RESOLUTION date filtering
+- Confusion between CREATOR field vs REPORTER field
+
+========================================================================
+SOLUTION IMPLEMENTED:
+========================================================================
+
+1. AUTOMATION SCRIPT UPDATED (update-confluence-monthly-enhanced.js)
+   ✅ Fixed FTE Onboarding query:
+      OLD: summary ~ "CLONE - IT Support Onboarding" (automation tickets)
+      NEW: type = Onboarding AND summary !~ "CLONE" AND summary !~ "Contractor" (calendar events)
+
+   ✅ Added Contractor Offboarding query (was completely missing):
+      NEW: summary ~ "CLONE - Contractor Offboarding"
+
+   ✅ Updated return object to include:
+      - fteOffboarding (separated from total)
+      - contractorOffboarding (new field)
+
+   ✅ Updated console logging to show FTE/contractor breakdown for both onboarding and offboarding
+
+2. CONFLUENCE PAGES UPDATED
+   ✅ Monthly Analyst (page ID: 6422003766)
+      Version: 13 → 14
+      OLD: Workforce Growth: +16 net (40 onboarded: 27 FTE, 13 contractors; 24 offboarded)
+      NEW: Workforce Growth: +12 net (41 onboarded: 28 FTE, 13 contractors; 29 offboarded: 24 FTE, 5 contractors)
+
+   ✅ Visual Slide Deck (page ID: 6440288277)
+      Version: 5 → 6
+      OLD: March: 40 Onboard, 24 Offboard, Net Growth: +16
+      NEW: March: 41 Onboard (28 FTE, 13 contractors), 29 Offboard (24 FTE, 5 contractors), Net Growth: +12
+
+========================================================================
+VALIDATED MARCH 2026 NUMBERS (using resolution date):
+========================================================================
+
+ONBOARDING:
+- FTE: 28 (from calendar event requests)
+- Contractors: 13 (CLONE tickets)
+- Total: 41
+
+OFFBOARDING:
+- FTE: 24 (CLONE - Device tickets)
+- Contractors: 5 (CLONE - Contractor Offboarding tickets)
+- Total: 29
+
+NET CHANGE: +12 (41 onboarded - 29 offboarded)
+
+========================================================================
+KEY LEARNINGS:
+========================================================================
+
+1. **Contractors don't have calendar events**
+   - They only have CLONE automation tickets
+   - Calendar events are for FTE only
+   - 5 contractors mistakenly had calendar events (classification error)
+
+2. **Use RESOLUTION date, not CREATED date**
+   - Resolution date = when IT completed the work
+   - This is what matters for business reporting
+   - Created date can be earlier (when ticket was filed)
+
+3. **Use REPORTER field, not CREATOR field**
+   - reporter = account that filed the ticket (jira-sapling, jira-greenhouse)
+   - creator = actual person who clicked create (often same, but not always)
+   - REPORTER is more reliable for automation ticket filtering
+
+4. **FTE onboarding = Calendar events**
+   - Count type = Onboarding, NOT CLONE tickets
+   - CLONE tickets are automation artifacts
+   - Calendar events are the source of truth for new hire requests
+
+5. **Manual counting is error-prone**
+   - User manually counted "12 FTE offboarded"
+   - Actual number was 24 FTE offboarded (2x higher!)
+   - Always validate with JQL queries
+
+========================================================================
+JQL QUERIES (using resolution date for automation):
+========================================================================
+
+FTE Onboarding:
+project = ISD AND type = Onboarding AND summary !~ "CLONE" AND summary !~ "Contractor"
+AND resolutiondate >= "2026-03-01" AND resolutiondate <= "2026-03-31"
+
+Contractor Onboarding:
+project = ISD AND summary ~ "CLONE - Contractor Onboarding"
+AND resolutiondate >= "2026-03-01" AND resolutiondate <= "2026-03-31"
+
+FTE Offboarding:
+project = ISD AND summary ~ "CLONE - Device"
+AND reporter = "jira-sapling@attentivemobile.com"
+AND resolutiondate >= "2026-03-01" AND resolutiondate <= "2026-03-31"
+
+Contractor Offboarding:
+project = ISD AND summary ~ "CLONE - Contractor Offboarding"
+AND resolutiondate >= "2026-03-01" AND resolutiondate <= "2026-03-31"
+
+========================================================================
+NEXT STEPS:
+========================================================================
+
+✅ Automation script updated - will use correct queries on next run
+✅ Confluence pages updated with correct March 2026 numbers
+✅ Documentation created with validation methodology
+
+Future runs of the automation will automatically:
+- Count FTE onboarding from calendar events (not CLONE tickets)
+- Include contractor offboarding (previously missing)
+- Show separate FTE vs contractor breakdown for both onboarding and offboarding

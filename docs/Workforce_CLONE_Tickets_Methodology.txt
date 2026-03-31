@@ -1,0 +1,130 @@
+WORKFORCE COUNTING - CLONE TICKETS AS PRIMARY SOURCE
+Updated: March 30, 2026
+========================================================================
+
+DECISION: Use CLONE Tickets as Primary Source ✅
+
+After analysis, switched from calendar events to CLONE tickets for FTE
+onboarding, with calendar events used as verification.
+
+========================================================================
+WHY CLONE TICKETS?
+========================================================================
+
+1. **Automated and Reliable**
+   - Directly from HR systems (Sapling/Greenhouse)
+   - No manual intervention required
+   - Triggered automatically for every hire
+
+2. **Consistent Methodology**
+   - Same approach for both FTE and contractors
+   - All workforce data from CLONE tickets
+   - Easier to maintain and understand
+
+3. **Complete Coverage**
+   - Calendar events can be missed or delayed
+   - CLONE tickets: 32 FTE onboarded
+   - Calendar events: 28 FTE onboarded
+   - Difference: 4 FTE (12.5%)
+
+4. **Data Quality Verification**
+   - Still queries calendar events
+   - Logs discrepancy if they don't match
+   - Warns if difference exceeds 10%
+
+========================================================================
+UPDATED MARCH 2026 NUMBERS:
+========================================================================
+
+OLD (Calendar Events):
+- FTE Onboarding: 28
+- Contractor Onboarding: 13
+- Total Onboarding: 41
+- Total Offboarding: 29
+- Net Change: +12
+
+NEW (CLONE Tickets):
+- FTE Onboarding: 32 ✨ (+4)
+- Contractor Onboarding: 13
+- Total Onboarding: 45
+- Total Offboarding: 29
+- Net Change: +16 ✨
+
+========================================================================
+VERIFICATION LOGGING:
+========================================================================
+
+When running, the automation will now log:
+
+✅ If CLONE and Calendar match:
+   "✅ FTE Onboarding verification: CLONE and Calendar match (32)"
+
+⚠️ If there's a discrepancy:
+   "⚠️ FTE Onboarding verification: CLONE=32, Calendar=28 (diff: 4, 12.5%)"
+
+⚠️ If discrepancy > 10%:
+   "⚠️ WARNING: Discrepancy exceeds 10% - may indicate data quality issue"
+
+========================================================================
+QUERIES USED:
+========================================================================
+
+PRIMARY SOURCE (FTE Onboarding):
+project = ISD
+AND summary ~ "CLONE - IT Support Onboarding"
+AND reporter in ("jira-greenhouse@attentivemobile.com", "jira-sapling@attentivemobile.com")
+AND resolutiondate >= "2026-03-01" AND resolutiondate <= "2026-03-31"
+
+VERIFICATION (Calendar Events):
+project = ISD
+AND type = Onboarding
+AND summary !~ "CLONE"
+AND summary !~ "Contractor"
+AND resolutiondate >= "2026-03-01" AND resolutiondate <= "2026-03-31"
+
+========================================================================
+FILES UPDATED:
+========================================================================
+
+1. update-confluence-monthly-enhanced.js
+   - Changed FTE onboarding query to use CLONE tickets
+   - Added calendar event verification query
+   - Added discrepancy logging
+   - Logs warning if difference > 10%
+
+2. Monthly Analyst (Confluence page ID: 6422003766)
+   Version: 14 → 15
+   Updated: 45 onboarded (32 FTE, 13 contractors), net +16
+
+3. Visual Slide Deck (Confluence page ID: 6440288277)
+   Version: 8 → 9
+   Updated: March: 45 Onboard (32 FTE, 13 contractors), Net Growth: +16
+
+4. GitHub
+   Commit: 5a5a597
+   "Use CLONE tickets as primary source for FTE onboarding with calendar verification"
+
+========================================================================
+BENEFITS SUMMARY:
+========================================================================
+
+✅ More accurate: Captures all hires (32 vs 28)
+✅ More consistent: Same methodology for FTE and contractors
+✅ More reliable: Automated from HR systems
+✅ Still verified: Calendar events catch data quality issues
+✅ Better logging: Shows discrepancies for investigation
+
+========================================================================
+RECOMMENDATION GOING FORWARD:
+========================================================================
+
+1. Monitor the discrepancy percentage each month
+2. If it consistently exceeds 10%, investigate root cause
+3. Possible causes of discrepancy:
+   - Calendar events not created for some hires
+   - Different timing (calendar created later)
+   - Different resolution dates
+   - Data quality issues in either system
+
+4. CLONE tickets remain the source of truth
+5. Calendar events remain the verification mechanism

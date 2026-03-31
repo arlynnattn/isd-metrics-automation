@@ -1,0 +1,96 @@
+MARCH 2026 WORKFORCE CHANGES - FINAL VALIDATED NUMBERS
+Generated: March 30, 2026
+========================================================================
+
+METHODOLOGY CONFIRMED:
+- FTE Onboarding: Calendar event requests (type = Onboarding, NOT CLONE, NOT Contractor)
+- Contractor Onboarding: CLONE - Contractor Onboarding tickets WITHOUT calendar events
+- FTE Offboarding: CLONE - Device tickets from jira-sapling
+- Contractor Offboarding: CLONE - Contractor Offboarding tickets
+- Date filter: Using CREATED date for validation, RESOLUTION date for automation
+
+========================================================================
+VALIDATED COUNTS (using created date >= 2026-03-01 AND <= 2026-03-31):
+========================================================================
+
+NEW HIRES (ONBOARDING):
+-----------------------
+FTE: 10 (from calendar events with March start dates)
+  1. Yung Lin (ISD-39679) - 3/30
+  2. Glaudys Nunez (ISD-39546) - 3/16
+  3. Alicia Woodman (ISD-39653) - 3/30
+  4. Leo Jung (ISD-39550) - 3/30
+  5. Joanna Wilford (ISD-39536) - 3/30
+  6. Michelle Tam (ISD-39327) - 3/16
+  7. Mario Guzman (ISD-39297) - 3/16
+  8. Zhuowei Zhang (ISD-39249) - 3/16
+  9. Meg Gravley (ISD-39144) - 3/9
+  10. (Plus 1 with no date: Christel Kemp)
+
+Contractors: 4 (CLONE tickets WITHOUT calendar events)
+  1. Jordan Kennedy (ISD-39526) - 3/23
+  2. Ma Teresa Ysabel Cruz (ISD-39513) - 3/20
+  3. Sidney Lucero (ISD-39512) - 3/20
+  4. Frontend Software Engineer (ISD-39296) - 3/16
+
+Total New Hires: 14
+
+OFFBOARDINGS:
+-------------
+FTE: 38 (CLONE - Device tickets from jira-sapling)
+  - 34 with March Last Days
+  - 2 with April Last Days (Kacee DeWit, Mark Miano)
+  - 2 with February Last Days (Gaurav Fogla, Chaitanya Alla)
+
+Contractors: 4 (CLONE - Contractor Offboarding)
+  1. ISD-39592 - Last Day 03/24/2026
+  2. ISD-39564 - Last Day 03/27/2026
+  3. ISD-39450 - Shari Diamond
+  4. ISD-39448
+
+Total Offboardings: 42
+
+NET CHANGE: -28 (14 onboarded - 42 offboarded)
+
+========================================================================
+NOTES:
+========================================================================
+
+1. **Manual count discrepancy resolved**:
+   User initially said "12 FTE offboarded" but confirmed with JQL query it's actually 38.
+   The 12 was a manual counting error.
+
+2. **Contractors don't have calendar events**:
+   5 contractors mistakenly had calendar event requests (Charlene Maponga, Torres Gesam,
+   Marcelo Alexandre, Brenda Azeredo, Anthony Bongiorni) but they are contractors based
+   on their CLONE - Contractor Onboarding tickets.
+
+3. **FTE onboarding from calendar events**:
+   These are human-created "Onboarding Request for New Hire" tickets that trigger
+   calendar events. CLONE tickets are automation artifacts, not the source of truth.
+
+4. **Automation script updated**:
+   - Changed FTE onboarding query to use calendar events (type = Onboarding, NOT CLONE)
+   - Added contractor offboarding query (was completely missing)
+   - Now returns separate fteOffboarding and contractorOffboarding counts
+
+========================================================================
+JQL QUERIES FOR VALIDATION:
+========================================================================
+
+FTE Onboarding:
+project = ISD AND type = Onboarding AND summary !~ "CLONE" AND summary !~ "Contractor"
+AND created >= "2026-03-01" AND created <= "2026-03-31"
+
+Contractor Onboarding:
+project = ISD AND summary ~ "CLONE - Contractor Onboarding"
+AND created >= "2026-03-01" AND created <= "2026-03-31"
+
+FTE Offboarding:
+project = ISD AND text ~ CLONE AND text ~ offboarding
+AND created >= 2026-03-01 AND created <= 2026-03-31
+AND reporter in (636176c81cc605b1fd17c7c2, "712020:59221180-e8bf-4bf0-9cfa-f87611fe2ff2")
+
+Contractor Offboarding:
+project = ISD AND summary ~ "CLONE - Contractor Offboarding"
+AND created >= "2026-03-01" AND created <= "2026-03-31"
