@@ -43,6 +43,21 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
           WEEK_OF=$(date -u +"%B %d, %Y")
+
+          # Read metrics from cache file
+          CREATED=$(node -e "console.log(require('./metrics-cache-weekly.json').current.created)")
+          RESOLVED=$(node -e "console.log(require('./metrics-cache-weekly.json').current.resolved)")
+          TTFR=$(node -e "console.log(require('./metrics-cache-weekly.json').current.ttfr)")
+          TTR=$(node -e "console.log(require('./metrics-cache-weekly.json').current.ttr)")
+          SLA=$(node -e "console.log(require('./metrics-cache-weekly.json').current.slaMet)")
+          CSAT=$(node -e "console.log(require('./metrics-cache-weekly.json').current.csat)")
+          CSAT_COUNT=$(node -e "console.log(require('./metrics-cache-weekly.json').current.csatCount)")
+          AUTO_PCT=$(node -e "console.log(require('./metrics-cache-weekly.json').current.automationPct)")
+          AUTO_COUNT=$(node -e "console.log(require('./metrics-cache-weekly.json').current.automatedTickets)")
+          FTE_ON=$(node -e "console.log(require('./metrics-cache-weekly.json').current.fteOnboarding)")
+          CONT_ON=$(node -e "console.log(require('./metrics-cache-weekly.json').current.contractorOnboarding)")
+          OFFBOARD=$(node -e "console.log(require('./metrics-cache-weekly.json').current.offboarding)")
+
           curl -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
             -H "Content-Type: application/json" \
@@ -72,14 +87,24 @@ jobs:
                   \"type\": \"section\",
                   \"text\": {
                     \"type\": \"mrkdwn\",
-                    \"text\": \"*📊 Updated Pages:*\"
+                    \"text\": \"*📊 Key Metrics:*\\n• 📥 Created: $CREATED tickets\\n• ✅ Resolved: $RESOLVED tickets\\n• ⏱️ TTFR: $TTFR\\n• ⏲️ TTR: $TTR\\n• 🎯 SLA Met: $SLA%\\n• ⭐ CSAT: $CSAT/5.0 ($CSAT_COUNT reviews)\\n• 🤖 Automation: $AUTO_PCT% ($AUTO_COUNT tickets)\"
                   }
                 },
                 {
                   \"type\": \"section\",
                   \"text\": {
                     \"type\": \"mrkdwn\",
-                    \"text\": \"• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982|📈 Weekly Metrics Dashboard>\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6424363046|📝 Weekly Analyst Report>\"
+                    \"text\": \"*👥 Workforce Changes:*\\n• 🟢 Onboarded: $((FTE_ON + CONT_ON)) ($FTE_ON FTE + $CONT_ON contractors)\\n• 🔴 Offboarded: $OFFBOARD\"
+                  }
+                },
+                {
+                  \"type\": \"divider\"
+                },
+                {
+                  \"type\": \"section\",
+                  \"text\": {
+                    \"type\": \"mrkdwn\",
+                    \"text\": \"*📄 Updated Pages:*\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982|📈 Weekly Metrics Dashboard>\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6424363046|📝 Weekly Analyst Report>\"
                   }
                 },
                 {

@@ -52,6 +52,22 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
           MONTH=$(date -u +"%B %Y")
+
+          # Read metrics from cache file
+          CREATED=$(node -e "console.log(require('./metrics-cache-monthly.json').current.created)")
+          RESOLVED=$(node -e "console.log(require('./metrics-cache-monthly.json').current.resolved)")
+          TTFR=$(node -e "console.log(require('./metrics-cache-monthly.json').current.ttfr)")
+          TTR=$(node -e "console.log(require('./metrics-cache-monthly.json').current.ttr)")
+          SLA=$(node -e "console.log(require('./metrics-cache-monthly.json').current.slaMet)")
+          CSAT=$(node -e "console.log(require('./metrics-cache-monthly.json').current.csat)")
+          CSAT_COUNT=$(node -e "console.log(require('./metrics-cache-monthly.json').current.csatCount)")
+          AUTO_PCT=$(node -e "console.log(require('./metrics-cache-monthly.json').current.automationPct)")
+          AUTO_COUNT=$(node -e "console.log(require('./metrics-cache-monthly.json').current.automatedTickets)")
+          FTE_ON=$(node -e "console.log(require('./metrics-cache-monthly.json').current.fteOnboarding)")
+          CONT_ON=$(node -e "console.log(require('./metrics-cache-monthly.json').current.contractorOnboarding)")
+          FTE_OFF=$(node -e "console.log(require('./metrics-cache-monthly.json').current.fteOffboarding)")
+          CONT_OFF=$(node -e "console.log(require('./metrics-cache-monthly.json').current.contractorOffboarding)")
+
           curl -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
             -H "Content-Type: application/json" \
@@ -81,14 +97,24 @@ jobs:
                   \"type\": \"section\",
                   \"text\": {
                     \"type\": \"mrkdwn\",
-                    \"text\": \"*📊 Updated Pages:*\"
+                    \"text\": \"*📊 Key Metrics:*\\n• 📥 Created: $CREATED tickets\\n• ✅ Resolved: $RESOLVED tickets\\n• ⏱️ TTFR: $TTFR\\n• ⏲️ TTR: $TTR\\n• 🎯 SLA Met: $SLA%\\n• ⭐ CSAT: $CSAT/5.0 ($CSAT_COUNT reviews)\\n• 🤖 Automation: $AUTO_PCT% ($AUTO_COUNT tickets)\"
                   }
                 },
                 {
                   \"type\": \"section\",
                   \"text\": {
                     \"type\": \"mrkdwn\",
-                    \"text\": \"• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689|📈 Monthly Metrics Dashboard>\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6422003766|📝 Monthly Analyst Report>\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6440288277|🎨 Visual Slide Deck>\"
+                    \"text\": \"*👥 Workforce Changes:*\\n• 🟢 Onboarded: $((FTE_ON + CONT_ON)) ($FTE_ON FTE + $CONT_ON contractors)\\n• 🔴 Offboarded: $((FTE_OFF + CONT_OFF)) ($FTE_OFF FTE + $CONT_OFF contractors)\"
+                  }
+                },
+                {
+                  \"type\": \"divider\"
+                },
+                {
+                  \"type\": \"section\",
+                  \"text\": {
+                    \"type\": \"mrkdwn\",
+                    \"text\": \"*📄 Updated Pages:*\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689|📈 Monthly Metrics Dashboard>\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6422003766|📝 Monthly Analyst Report>\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6440288277|🎨 Visual Slide Deck>\"
                   }
                 },
                 {
