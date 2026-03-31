@@ -6,12 +6,18 @@ This folder contains documentation for the ISD metrics automation system.
 
 ### Automation Setup
 
-- **[Monthly_Automation_Full_Setup.txt](./Monthly_Automation_Full_Setup.txt)**
-  - Complete guide to the monthly automation workflow
-  - What runs on 1st of each month at 9am ET
+- **[Automation_Schedule.md](./Automation_Schedule.md)** ⭐ **START HERE**
+  - Complete schedule for weekly AND monthly automation
+  - What runs, when, and where
   - Manual trigger instructions
-  - Monitoring and troubleshooting guide
-  - **Read this first for automation overview**
+  - Monitoring and troubleshooting
+  - **Read this first for full automation overview**
+
+- **[Monthly_Automation_Full_Setup.txt](./Monthly_Automation_Full_Setup.txt)**
+  - Detailed guide to monthly automation workflow
+  - What runs on 1st of each month at 9am ET
+  - GitHub Actions configuration
+  - Required secrets
 
 ### Workforce Counting Methodology
 
