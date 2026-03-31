@@ -42,13 +42,56 @@ jobs:
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
-          WEEK_OF=$(date -u +"%m/%d/%Y")
+          WEEK_OF=$(date -u +"%B %d, %Y")
           curl -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{
               \"channel\": \"itops-metric-reporting\",
-              \"text\": \"✅ *ISD Weekly Metrics Updated - All Pages*\n📅 Week of $WEEK_OF\n\n📊 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982|Weekly Metrics Dashboard>\n📝 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6424363046|Weekly Analyst Report>\",
+              \"text\": \"✅ ISD Weekly Metrics Updated\",
+              \"blocks\": [
+                {
+                  \"type\": \"header\",
+                  \"text\": {
+                    \"type\": \"plain_text\",
+                    \"text\": \"✅ ISD Weekly Metrics Updated\",
+                    \"emoji\": true
+                  }
+                },
+                {
+                  \"type\": \"section\",
+                  \"text\": {
+                    \"type\": \"mrkdwn\",
+                    \"text\": \"📅 *Week of $WEEK_OF*\\n\\nAll weekly Confluence pages have been automatically updated with the latest metrics.\"
+                  }
+                },
+                {
+                  \"type\": \"divider\"
+                },
+                {
+                  \"type\": \"section\",
+                  \"text\": {
+                    \"type\": \"mrkdwn\",
+                    \"text\": \"*📊 Updated Pages:*\"
+                  }
+                },
+                {
+                  \"type\": \"section\",
+                  \"text\": {
+                    \"type\": \"mrkdwn\",
+                    \"text\": \"• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982|📈 Weekly Metrics Dashboard>\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6424363046|📝 Weekly Analyst Report>\"
+                  }
+                },
+                {
+                  \"type\": \"context\",
+                  \"elements\": [
+                    {
+                      \"type\": \"mrkdwn\",
+                      \"text\": \"🤖 Automated via GitHub Actions • Next update: Next Monday at 9:00 AM ET\"
+                    }
+                  ]
+                }
+              ],
               \"unfurl_links\": false
             }"
 

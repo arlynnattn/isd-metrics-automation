@@ -57,7 +57,50 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{
               \"channel\": \"itops-metric-reporting\",
-              \"text\": \"✅ *ISD Monthly Metrics Updated - All Pages*\n📅 $MONTH\n\n📊 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689|Main Dashboard>\n📝 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6422003766|Monthly Analyst Report>\n🎨 <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6440288277|Visual Slide Deck>\",
+              \"text\": \"✅ ISD Monthly Metrics Updated\",
+              \"blocks\": [
+                {
+                  \"type\": \"header\",
+                  \"text\": {
+                    \"type\": \"plain_text\",
+                    \"text\": \"✅ ISD Monthly Metrics Updated\",
+                    \"emoji\": true
+                  }
+                },
+                {
+                  \"type\": \"section\",
+                  \"text\": {
+                    \"type\": \"mrkdwn\",
+                    \"text\": \"📅 *$MONTH*\\n\\nAll monthly Confluence pages have been automatically updated with the latest metrics.\"
+                  }
+                },
+                {
+                  \"type\": \"divider\"
+                },
+                {
+                  \"type\": \"section\",
+                  \"text\": {
+                    \"type\": \"mrkdwn\",
+                    \"text\": \"*📊 Updated Pages:*\"
+                  }
+                },
+                {
+                  \"type\": \"section\",
+                  \"text\": {
+                    \"type\": \"mrkdwn\",
+                    \"text\": \"• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689|📈 Monthly Metrics Dashboard>\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6422003766|📝 Monthly Analyst Report>\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6440288277|🎨 Visual Slide Deck>\"
+                  }
+                },
+                {
+                  \"type\": \"context\",
+                  \"elements\": [
+                    {
+                      \"type\": \"mrkdwn\",
+                      \"text\": \"🤖 Automated via GitHub Actions • Next update: 1st of next month at 9:00 AM ET\"
+                    }
+                  ]
+                }
+              ],
               \"unfurl_links\": false
             }"
 

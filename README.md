@@ -1,24 +1,35 @@
 # ISD Metrics Automation
 
-**Fully automated** reporting for IT Ops metrics from Jira Service Desk, matching the monthly leadership dashboard.
+**Fully automated** reporting for IT Ops metrics from Jira Service Desk, with weekly and monthly updates to Confluence and Slack.
 
 ## 📚 Documentation
 
 Comprehensive documentation is available in the [`docs/`](./docs) folder:
-- **[Quick Start Guide](./docs/README.md)** - Start here!
+- **[Automation Schedule](./docs/Automation_Schedule.md)** ⭐ **START HERE** - Complete schedule for weekly & monthly automation
+- **[Quick Start Guide](./docs/README.md)** - Metrics overview and troubleshooting
 - **[Monthly Automation Setup](./docs/Monthly_Automation_Full_Setup.txt)** - Full automation workflow
 - **[Workforce Methodology](./docs/Workforce_CLONE_Tickets_Methodology.txt)** - How workforce counting works
+- **[Slack Message Examples](./docs/Slack_Message_Examples.md)** - Visual preview of notifications
 - **[March 2026 Validated Numbers](./docs/March_2026_Workforce_FINAL_VALIDATED.txt)** - Reference data
 
-## 🤖 Automated Monthly Updates
+## 🤖 Automated Updates
 
-On the **1st of every month at 9:00 AM ET**, GitHub Actions automatically:
+### Weekly Updates (Every Monday at 9:00 AM ET)
+GitHub Actions automatically:
+1. Updates **Weekly Metrics Dashboard** (last 7 days metrics)
+2. Updates **Weekly Analyst Report** (executive analysis)
+3. Posts notification to **#itops-metric-reporting** Slack channel
+
+### Monthly Updates (1st of Month at 9:00 AM ET)
+GitHub Actions automatically:
 1. Updates **ISD Monthly Metrics Dashboard** (main metrics page)
-2. Updates **Monthly Analyst Report** (executive insights)
+2. Updates **Monthly Analyst Report** (strategic insights)
 3. Updates **Visual Slide Deck** (presentation-ready slides)
 4. Posts notification to **#itops-metric-reporting** Slack channel
 
 **Manual trigger**: Available via [GitHub Actions](https://github.com/arlynnattn/isd-metrics-automation/actions)
+
+**Slack Notifications**: All updates send rich, formatted notifications using Slack Block Kit with emojis, clickable links, and organized sections.
 
 ## ✅ Features
 
@@ -42,11 +53,12 @@ On the **1st of every month at 9:00 AM ET**, GitHub Actions automatically:
 | Component | Status | Details |
 |-----------|--------|---------|
 | Data Collection | ✅ Fully Automated | Fetches from Jira/Slack APIs |
-| Monthly Updates | ✅ Fully Automated | All 3 Confluence pages auto-update on 1st of month |
-| Confluence Publishing | ✅ Fully Automated | Monthly Metrics, Analyst Report, and Visual Slide Deck |
+| Weekly Updates | ✅ Fully Automated | 2 Confluence pages auto-update every Monday at 9am ET |
+| Monthly Updates | ✅ Fully Automated | 3 Confluence pages auto-update on 1st of month at 9am ET |
+| Confluence Publishing | ✅ Fully Automated | Weekly Dashboard + Analyst, Monthly Dashboard + Analyst + Slides |
 | Workforce Tracking | ✅ Fully Automated | Uses CLONE tickets with calendar verification |
 | Data Consistency | ✅ Integrated | All reports consume same JSON metrics data |
-| Slack Notifications | ✅ Fully Automated | Posts to #itops-metric-reporting on completion |
+| Slack Notifications | ✅ Fully Automated | Rich Block Kit messages to #itops-metric-reporting |
 
 ## 🚀 Quick Start
 
@@ -79,22 +91,30 @@ Weekly and Monthly data reports are saved to your **Desktop** as HTML files. The
 
 ## 📋 Automated Confluence Updates
 
+### Weekly (Fully Automated via GitHub Actions)
+Every Monday at 9:00 AM ET, these pages auto-update:
+- **Weekly Metrics Dashboard**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982
+- **Weekly Analyst Report**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6424363046
+
 ### Monthly (Fully Automated via GitHub Actions)
 On the 1st of every month at 9:00 AM ET, these pages auto-update:
 - **Monthly Metrics Dashboard**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689
 - **Monthly Analyst Report**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6422003766
 - **Visual Slide Deck**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6440288277
 
-### Weekly/Automation Metrics (Run Manually or via Cron)
-- **Weekly Metrics**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982
-- **Weekly Analyst Report**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6424363046
+### Other Automation Metrics (Run Manually)
 - **Automation Metrics Overview**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/5471371324
 
-### Manual Monthly Update (if needed)
-To manually run the monthly automation:
+### Manual Updates (if needed)
 
+**Weekly:**
 ```bash
-# Run all 3 monthly updates in sequence:
+node update-confluence-weekly.js
+node generate-weekly-analyst-report.js
+```
+
+**Monthly:**
+```bash
 node update-confluence-monthly-enhanced.js
 node generate-monthly-analyst-report.js
 node update-visual-slide-deck.js
@@ -158,14 +178,21 @@ project = ISD AND created >= "2026-03-01"
 
 ## 📁 Files
 
-### Data Collection Scripts
-- `update-confluence-weekly.js` - Weekly metrics data collection
-- `update-confluence-monthly-enhanced.js` - Monthly metrics data collection
-- `update-confluence-metrics.js` - Automation metrics overview (week-over-week)
-
-### Analyst Report Scripts
+### Weekly Automation Scripts
+- `update-confluence-weekly.js` - Weekly metrics data collection and Confluence update
 - `generate-weekly-analyst-report.js` - Executive analysis of weekly metrics
+
+### Monthly Automation Scripts
+- `update-confluence-monthly-enhanced.js` - Monthly metrics data collection and Confluence update
 - `generate-monthly-analyst-report.js` - Strategic insights from monthly metrics
+- `update-visual-slide-deck.js` - Updates presentation-ready slide deck
+
+### Other Scripts
+- `update-confluence-metrics.js` - Automation metrics overview (week-over-week, manual run)
+
+### GitHub Actions Workflows
+- `.github/workflows/weekly-metrics.yml` - Weekly automation (every Monday at 9am ET)
+- `.github/workflows/monthly-metrics.yml` - Monthly automation (1st of month at 9am ET)
 
 ### Helper Scripts
 - `run-weekly.sh` - Run weekly metrics report
@@ -199,6 +226,33 @@ project = ISD AND created >= "2026-03-01"
 **Cause**: API token doesn't have Confluence write permissions  
 **Workaround**: Manual copy/paste from Desktop HTML files (current workflow)
 
+## 🔔 Slack Notifications
+
+All automated updates send rich, formatted notifications to **#itops-metric-reporting** using Slack Block Kit:
+
+**Features:**
+- ✅ Bold headers with emojis
+- 📅 Clear date/time information
+- 📊 Organized sections with visual dividers
+- 🔗 Clickable links to updated Confluence pages
+- 🤖 Footer showing automation source and next update time
+
+**Example Weekly Message:**
+```
+✅ ISD Weekly Metrics Updated
+📅 Week of March 31, 2026
+
+All weekly Confluence pages have been automatically updated...
+
+📊 Updated Pages:
+• 📈 Weekly Metrics Dashboard
+• 📝 Weekly Analyst Report
+
+🤖 Automated via GitHub Actions • Next update: Next Monday at 9:00 AM ET
+```
+
+See [Slack_Message_Examples.md](./docs/Slack_Message_Examples.md) for visual previews and technical details.
+
 ## 🛠️ Technical Details
 
 ### SLA Calculation
@@ -221,15 +275,17 @@ Both scripts handle pagination for large result sets using Jira's `nextPageToken
 
 ## 📅 Scheduled Execution
 
-For automatic weekly/monthly reports, set up a cron job:
+**Fully automated via GitHub Actions** - no local cron setup needed!
 
-```bash
-# Weekly on Monday at 9 AM
-0 9 * * 1 cd ~/isd-metrics-automation && ./run-weekly.sh
+- **Weekly**: Every Monday at 9:00 AM ET (GitHub Actions cron: `0 13 * * 1` UTC)
+- **Monthly**: 1st of month at 9:00 AM ET (GitHub Actions cron: `0 13 1 * *` UTC)
 
-# Monthly on 1st day of month at 9 AM
-0 9 1 * * cd ~/isd-metrics-automation && ./run-monthly.sh
-```
+Both workflows automatically:
+1. Collect metrics from Jira/Slack APIs
+2. Update Confluence pages
+3. Send formatted Slack notifications to #itops-metric-reporting
+
+**Monitor runs**: https://github.com/arlynnattn/isd-metrics-automation/actions
 
 ## 💡 Support
 
