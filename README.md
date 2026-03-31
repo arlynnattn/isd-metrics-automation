@@ -1,6 +1,24 @@
 # ISD Metrics Automation
 
-**Semi-automated** reporting for IT Ops metrics from Jira Service Desk, matching the monthly leadership dashboard.
+**Fully automated** reporting for IT Ops metrics from Jira Service Desk, matching the monthly leadership dashboard.
+
+## 📚 Documentation
+
+Comprehensive documentation is available in the [`docs/`](./docs) folder:
+- **[Quick Start Guide](./docs/README.md)** - Start here!
+- **[Monthly Automation Setup](./docs/Monthly_Automation_Full_Setup.txt)** - Full automation workflow
+- **[Workforce Methodology](./docs/Workforce_CLONE_Tickets_Methodology.txt)** - How workforce counting works
+- **[March 2026 Validated Numbers](./docs/March_2026_Workforce_FINAL_VALIDATED.txt)** - Reference data
+
+## 🤖 Automated Monthly Updates
+
+On the **1st of every month at 9:00 AM ET**, GitHub Actions automatically:
+1. Updates **ISD Monthly Metrics Dashboard** (main metrics page)
+2. Updates **Monthly Analyst Report** (executive insights)
+3. Updates **Visual Slide Deck** (presentation-ready slides)
+4. Posts notification to **#itops-metric-reporting** Slack channel
+
+**Manual trigger**: Available via [GitHub Actions](https://github.com/arlynnattn/isd-metrics-automation/actions)
 
 ## ✅ Features
 
@@ -19,14 +37,16 @@
 - **Monthly Analyst Report**: Strategic insights - automatically updates Confluence
 - **Automation Overview**: Week-over-week automation metrics - automatically updates Confluence
 
-## ⚠️ Current Automation State
+## ✅ Current Automation State
 
 | Component | Status | Details |
 |-----------|--------|---------|
 | Data Collection | ✅ Fully Automated | Fetches from Jira/Slack APIs |
-| Dashboard Generation | ✅ Fully Automated | Creates HTML reports |
-| Confluence Publishing | ⚠️ Semi-Automated | Analyst reports auto-publish; data reports require manual copy-paste |
-| Data Consistency | ✅ Integrated | Analyst reports now consume dashboard data (fixed as of 2026-03-28) |
+| Monthly Updates | ✅ Fully Automated | All 3 Confluence pages auto-update on 1st of month |
+| Confluence Publishing | ✅ Fully Automated | Monthly Metrics, Analyst Report, and Visual Slide Deck |
+| Workforce Tracking | ✅ Fully Automated | Uses CLONE tickets with calendar verification |
+| Data Consistency | ✅ Integrated | All reports consume same JSON metrics data |
+| Slack Notifications | ✅ Fully Automated | Posts to #itops-metric-reporting on completion |
 
 ## 🚀 Quick Start
 
@@ -57,24 +77,30 @@ cd ~/isd-metrics-automation
 
 Weekly and Monthly data reports are saved to your **Desktop** as HTML files. The Automation Metrics and Analyst Reports update Confluence pages directly.
 
-## 📋 How to Update Confluence
+## 📋 Automated Confluence Updates
 
-Scripts automatically update Confluence pages:
-- **Weekly Metrics**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982
-- **Monthly Metrics**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689
-- **Automation Metrics Overview**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/5471371324
-- **Weekly Analyst Report**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6424363046
+### Monthly (Fully Automated via GitHub Actions)
+On the 1st of every month at 9:00 AM ET, these pages auto-update:
+- **Monthly Metrics Dashboard**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689
 - **Monthly Analyst Report**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6422003766
+- **Visual Slide Deck**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6440288277
 
-If manual update is needed for Weekly/Monthly reports:
+### Weekly/Automation Metrics (Run Manually or via Cron)
+- **Weekly Metrics**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982
+- **Weekly Analyst Report**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6424363046
+- **Automation Metrics Overview**: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/5471371324
 
-1. **Run the script** (weekly or monthly)
-2. **Find the HTML file** on your Desktop:
-   - `ISD_Weekly_Metrics_2026-03-27.html`
-   - `ISD_Monthly_Metrics_Mar_2026.html`
-3. **Open the file** and copy all content (Cmd+A, Cmd+C)
-4. **Go to the appropriate Confluence page** (links above)
-5. **Edit the page** and paste the HTML
+### Manual Monthly Update (if needed)
+To manually run the monthly automation:
+
+```bash
+# Run all 3 monthly updates in sequence:
+node update-confluence-monthly-enhanced.js
+node generate-monthly-analyst-report.js
+node update-visual-slide-deck.js
+```
+
+Or trigger via [GitHub Actions](https://github.com/arlynnattn/isd-metrics-automation/actions) → "Run workflow"
 
 ## 📊 Metrics Included
 
