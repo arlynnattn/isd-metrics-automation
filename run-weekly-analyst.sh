@@ -3,10 +3,11 @@
 # Weekly Analyst Report Generator
 # Generates executive analysis from weekly metrics data
 
-cd "$(dirname "$0")"
+# NOTE: For manual local runs, set these environment variables:
+# export ATLASSIAN_EMAIL="your-email@attentivemobile.com"
+# export ATLASSIAN_API_TOKEN="your-api-token"
 
-export ATLASSIAN_EMAIL="agalang@attentivemobile.com"
-export ATLASSIAN_API_TOKEN="ATATT3xFfGF0hfnFNQ0rMFJl5p8fmdGT1iQZracpU1sBWO9aXgZcyV1HNfEAxuZVvtbeSkFBUgqkvIQcgknyor0xRAFSNbarHjCqAN5GoCzgUxEzmClfgZY0y9v0_55jvh97DPgN_WA_r_nJFtTjfxocvWJHIyqAJstpjbJhKz9AkxjR_-0DCI8=C5DE512A"
+cd "$(dirname "$0")"
 
 echo "🔄 Generating Weekly Analyst Report..."
 echo ""
