@@ -42,9 +42,8 @@ jobs:
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
-          WEEK_OF=$(date -u +"%B %d, %Y")
-
-          # Read metrics from cache file
+          # Read week label and metrics from cache file
+          WEEK_OF=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.period)")
           CREATED=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.createdCount)")
           RESOLVED=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.resolvedCount)")
           TTFR=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.avgTTFR + 'h')")

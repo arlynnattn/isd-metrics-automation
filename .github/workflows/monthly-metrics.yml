@@ -51,9 +51,8 @@ jobs:
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
-          MONTH=$(date -u +"%B %Y")
-
-          # Read metrics from cache file
+          # Read month label and metrics from cache file
+          MONTH=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.period)")
           CREATED=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.createdCount)")
           RESOLVED=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.resolvedCount)")
           TTFR=$(node -e "console.log(require('./metrics-cache-monthly.json').currentMonth.avgTTFR + 'h')")
