@@ -99,21 +99,21 @@ async function updateVisualSlideDeck() {
 
   // Load metrics from JSON
   const metrics = loadMonthlyMetrics();
-  if (!metrics || !metrics.current) {
+  if (!metrics || !metrics.currentMonth) {
     throw new Error('No metrics data found. Run update-confluence-monthly-enhanced.js first.');
   }
 
-  const { current, previous } = metrics;
+  const { currentMonth: current, previousMonth: previous } = metrics;
   const months = getMonthNames();
 
   // Extract key metrics
-  const currentTickets = current.totalTickets || 0;
-  const ttfr = formatHours(current.ttfr);
-  const ttr = formatHours(current.ttr);
-  const csat = current.csat?.toFixed(1) || '0.0';
-  const csatResponses = current.csatResponses || 0;
-  const automationRate = ((current.automatedTickets / currentTickets) * 100).toFixed(1);
-  const automatedTickets = current.automatedTickets || 0;
+  const currentTickets = current.resolvedCount || 0;
+  const ttfr = formatHours(current.avgTTFR);
+  const ttr = formatHours(current.avgTTR);
+  const csat = current.csat?.avgScore?.toFixed(1) || '0.0';
+  const csatResponses = current.csat?.totalResponses || 0;
+  const automationRate = ((current.automatedCount / currentTickets) * 100).toFixed(1);
+  const automatedTickets = current.automatedCount || 0;
   const humanTickets = currentTickets - automatedTickets;
 
   // Workforce data
