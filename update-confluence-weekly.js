@@ -812,7 +812,7 @@ async function updateConfluencePage(pageId, htmlContent, pageTitle) {
  * Generate Confluence HTML output
  */
 function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, previousMonth) {
-  const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'long', timeStyle: 'short' });
 
   // Calculate changes
   const resolvedChange = calculateMoMChange(previousMetrics.resolvedCount, currentMetrics.resolvedCount);

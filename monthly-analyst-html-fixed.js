@@ -15,7 +15,7 @@ const {
 const { loadValidationResults } = require('./validate-metrics');
 
 function generateAnalystReportHTML(currentMetrics, previousMetrics) {
-  const timestamp = new Date().toLocaleString();
+  const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'long', timeStyle: 'short' });
 
   // Parse TTFR/TTR from formatted strings to raw hours if needed
   const currentTTFR = typeof currentMetrics.avgTTFR === 'string' ? parseFormattedTime(currentMetrics.avgTTFR) || parseFloat(currentMetrics.avgTTFR) : parseFloat(currentMetrics.avgTTFR);

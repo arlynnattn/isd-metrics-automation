@@ -73,7 +73,7 @@ function makeRequest(hostname, path, method = 'GET', data = null, additionalHead
  * Generate executive analyst report HTML
  */
 function generateAnalystReportHTML(currentMetrics, previousMetrics) {
-  const timestamp = new Date().toLocaleString();
+  const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'long', timeStyle: 'short' });
 
   // Parse TTFR/TTR from formatted strings to raw hours if needed
   const currentTTFR = typeof currentMetrics.avgTTFR === 'string' ? parseFormattedTime(currentMetrics.avgTTFR) || parseFloat(currentMetrics.avgTTFR) : parseFloat(currentMetrics.avgTTFR);
