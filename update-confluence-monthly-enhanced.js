@@ -1348,12 +1348,21 @@ async function main() {
     console.log(`  Avg TTR (Automated vs Human): ${formatTime(currentMetrics.avgAutomatedTTR)} vs ${formatTime(currentMetrics.avgHumanTTR)}`);
     console.log(`  Human Time Reclaimed: ${currentMetrics.humanTimeReclaimed} hours`);
 
-    // Output to file for review
-    const now = new Date();
-    const outputPath = `/Users/arlynngalang/Desktop/ISD_Monthly_Metrics_${months.currentMonth.shortLabel}_${now.getFullYear()}.html`;
-    fs.writeFileSync(outputPath, html);
-    console.log(`\n✓ HTML output written to ${outputPath}`);
-    console.log('  Copy this HTML and paste into Confluence page editor');
+    // Output to file for review (only when running locally, not in CI)
+    if (!process.env.CI && !process.env.GITHUB_ACTIONS) {
+      const now = new Date();
+      const outputPath = `/Users/arlynngalang/Desktop/ISD_Monthly_Metrics_${months.currentMonth.shortLabel}_${now.getFullYear()}.html`;
+      try {
+        fs.writeFileSync(outputPath, html);
+        console.log(`\n✓ HTML output written to ${outputPath}`);
+        console.log('  Copy this HTML and paste into Confluence page editor');
+      } catch (err) {
+        console.log(`\n⚠️  Could not write HTML to file: ${err.message}`);
+        console.log('  (This is expected in CI environments)');
+      }
+    } else {
+      console.log(`\n✓ Running in CI - skipping local HTML file output`);
+    }
 
     // Try to update Confluence page (optional)
     console.log('\nAttempting Confluence update...');

@@ -342,10 +342,18 @@ async function main() {
 
   const html = generateAnalystReportHTML(currentMetrics, previousMetrics);
 
-  // Save to desktop
-  const outputPath = `/Users/arlynngalang/Desktop/ISD_Monthly_Analyst_Report_${new Date().toISOString().split('T')[0]}.html`;
-  fs.writeFileSync(outputPath, html);
-  console.log(`✓ Analyst report saved to ${outputPath}`);
+  // Save to desktop (only when running locally, not in CI)
+  if (!process.env.CI && !process.env.GITHUB_ACTIONS) {
+    const outputPath = `/Users/arlynngalang/Desktop/ISD_Monthly_Analyst_Report_${new Date().toISOString().split('T')[0]}.html`;
+    try {
+      fs.writeFileSync(outputPath, html);
+      console.log(`✓ Analyst report saved to ${outputPath}`);
+    } catch (err) {
+      console.log(`⚠️  Could not write HTML to file: ${err.message}`);
+    }
+  } else {
+    console.log(`✓ Running in CI - skipping local HTML file output`);
+  }
 
   // Update Confluence page
   console.log('\nAttempting Confluence update...');

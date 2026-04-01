@@ -1284,13 +1284,19 @@ async function main() {
     console.log(`  Human Time Reclaimed: ${currentMetrics.humanTimeReclaimed} hours`);
 
     // Output to file for review (skip in CI)
-    if (!process.env.CI) {
+    if (!process.env.CI && !process.env.GITHUB_ACTIONS) {
       const now = new Date();
       const dateStr = now.toISOString().split('T')[0];
       const outputPath = `/Users/arlynngalang/Desktop/ISD_Weekly_Metrics_${dateStr}.html`;
-      fs.writeFileSync(outputPath, html);
-      console.log(`\n✓ HTML output written to ${outputPath}`);
-      console.log('  Copy this HTML and paste into Confluence page editor');
+      try {
+        fs.writeFileSync(outputPath, html);
+        console.log(`\n✓ HTML output written to ${outputPath}`);
+        console.log('  Copy this HTML and paste into Confluence page editor');
+      } catch (err) {
+        console.log(`\n⚠️  Could not write HTML to file: ${err.message}`);
+      }
+    } else {
+      console.log(`\n✓ Running in CI - skipping local HTML file output`);
     }
 
     // Try to update Confluence page
