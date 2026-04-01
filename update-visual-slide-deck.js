@@ -110,7 +110,8 @@ async function updateVisualSlideDeck() {
   const currentTickets = current.resolvedCount || 0;
   const ttfr = formatHours(current.avgTTFR);
   const ttr = formatHours(current.avgTTR);
-  const csat = current.csat?.avgScore?.toFixed(1) || '0.0';
+  const csatScore = current.csat?.avgScore;
+  const csat = typeof csatScore === 'number' ? csatScore.toFixed(1) : (csatScore || 'N/A');
   const csatResponses = current.csat?.totalResponses || 0;
   const automationRate = ((current.automatedCount / currentTickets) * 100).toFixed(1);
   const automatedTickets = current.automatedCount || 0;
