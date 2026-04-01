@@ -305,32 +305,35 @@ async function buildServiceCatalogCache(issues) {
 function getMonthRanges() {
   const now = new Date();
 
-  // Current month: start to now
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const currentMonthEnd = now;
+  // Monthly reports show the PREVIOUS completed month, not partial current month
+  // Current = last month (complete), Previous = month before that (for comparison)
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const currentMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
-  // Previous month: full month
-  const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+  // Previous month: full month before current
+  const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+  const previousMonthEnd = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59, 999);
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                       'July', 'August', 'September', 'October', 'November', 'December'];
 
   const currentStartStr = currentMonthStart.toISOString().split('T')[0];
+  const currentEndStr = currentMonthEnd.toISOString().split('T')[0];
   const previousStartStr = previousMonthStart.toISOString().split('T')[0];
   const previousEndStr = previousMonthEnd.toISOString().split('T')[0];
 
   return {
     currentMonth: {
-      jqlFilter: `>= "${currentStartStr}"`, // From start of current month
+      jqlFilter: `>= "${currentStartStr}" AND resolutiondate <= "${currentEndStr}"`,
+      createdFilter: `created >= "${currentStartStr}" AND created <= "${currentEndStr}"`,
       start: currentMonthStart,
       end: currentMonthEnd,
       label: `${monthNames[currentMonthStart.getMonth()]} ${currentMonthStart.getFullYear()}`,
       shortLabel: monthNames[currentMonthStart.getMonth()].substring(0, 3)
     },
     previousMonth: {
-      jqlFilterRange: `>= "${previousStartStr}" AND resolutiondate <= "${previousEndStr}"`,
-      createdFilterRange: `created >= "${previousStartStr}" AND created <= "${previousEndStr}"`,
+      jqlFilter: `>= "${previousStartStr}" AND resolutiondate <= "${previousEndStr}"`,
+      createdFilter: `created >= "${previousStartStr}" AND created <= "${previousEndStr}"`,
       start: previousMonthStart,
       end: previousMonthEnd,
       label: `${monthNames[previousMonthStart.getMonth()]} ${previousMonthStart.getFullYear()}`,
@@ -1283,15 +1286,15 @@ async function main() {
 
     // Calculate metrics for both months using resolutiondate + status filter
     const currentResolvedJQL = `project = ISD AND resolutiondate ${months.currentMonth.jqlFilter} AND status in (${resolvedStatuses})`;
-    const previousResolvedJQL = `project = ISD AND resolutiondate ${months.previousMonth.jqlFilterRange} AND status in (${resolvedStatuses})`;
+    const previousResolvedJQL = `project = ISD AND resolutiondate ${months.previousMonth.jqlFilter} AND status in (${resolvedStatuses})`;
 
     const currentMetrics = await calculateMonthlyMetrics(currentResolvedJQL, months.currentMonth.label, serviceCatalogCache);
     const previousMetrics = await calculateMonthlyMetrics(previousResolvedJQL, months.previousMonth.label, serviceCatalogCache);
 
     // Count created tickets for both months
     console.log('\nCounting created tickets...');
-    const currentCreated = await countCreatedTickets(`created ${months.currentMonth.jqlFilter}`, months.currentMonth.label, true);
-    const previousCreated = await countCreatedTickets(months.previousMonth.createdFilterRange, months.previousMonth.label, true);
+    const currentCreated = await countCreatedTickets(months.currentMonth.createdFilter, months.currentMonth.label, true);
+    const previousCreated = await countCreatedTickets(months.previousMonth.createdFilter, months.previousMonth.label, true);
     console.log(`Current month created: ${currentCreated}, Previous month created: ${previousCreated}`);
 
     currentMetrics.createdCount = currentCreated;
@@ -1314,7 +1317,7 @@ async function main() {
     // Count workforce changes (onboarding/offboarding by resolved date)
     console.log('\nCounting workforce changes...');
     const currentWorkforce = await countWorkforceChanges(months.currentMonth.jqlFilter, months.currentMonth.label, false);
-    const previousWorkforce = await countWorkforceChanges(months.previousMonth.jqlFilterRange, months.previousMonth.label, true);
+    const previousWorkforce = await countWorkforceChanges(months.previousMonth.jqlFilter, months.previousMonth.label, true);
     console.log(`Current month: ${currentWorkforce.fteOnboarding} FTE + ${currentWorkforce.contractorOnboarding} contractors onboarded, ${currentWorkforce.fteOffboarding} FTE + ${currentWorkforce.contractorOffboarding} contractors offboarded`);
     console.log(`Previous month: ${previousWorkforce.fteOnboarding} FTE + ${previousWorkforce.contractorOnboarding} contractors onboarded, ${previousWorkforce.fteOffboarding} FTE + ${previousWorkforce.contractorOffboarding} contractors offboarded`);
 
