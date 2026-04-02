@@ -19,10 +19,9 @@ function renderSlackReadoutSection(slackMetrics) {
     return '';
   }
 
-  const channelRows = (slackMetrics.channels || []).map((channel) => {
-    const summary = channel.error
-      ? channel.error
-      : `${channel.messageCount} messages, ${channel.uniqueUsers} users, ${channel.activeDays} active days`;
+  const visibleChannels = (slackMetrics.channels || []).filter((channel) => !channel.error);
+  const channelRows = visibleChannels.map((channel) => {
+    const summary = `${channel.messageCount} messages, ${channel.uniqueUsers} users, ${channel.activeDays} active days`;
 
     return `
   <tr>
@@ -49,13 +48,13 @@ function renderSlackReadoutSection(slackMetrics) {
 <h3>Slack Support Signals</h3>
 <p><strong>Support-channel demand:</strong> ${slackMetrics.messageCount} human-authored messages across ${slackMetrics.uniqueUsers} user touches.</p>
 
-<table style="width: 100%; border-collapse: collapse;">
+${channelRows ? `<table style="width: 100%; border-collapse: collapse;">
   <tr style="background-color: #f5f5f5;">
     <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Channel</th>
     <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Monthly activity</th>
   </tr>
 ${channelRows}
-</table>
+</table>` : ''}
 
 ${trendItems ? `<p><strong>Trends:</strong></p><ul>${trendItems}</ul>` : ''}
 ${notableItems ? `<p><strong>Notables:</strong></p><ul>${notableItems}</ul>` : ''}

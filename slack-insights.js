@@ -1,19 +1,23 @@
 #!/usr/bin/env node
 
 const https = require('https');
+const HISTORY_PAGE_LIMIT = 100;
+const BETWEEN_PAGE_DELAY_MS = 1200;
+const BETWEEN_CHANNEL_DELAY_MS = 4000;
+const RATE_LIMIT_RECOVERY_MS = 20000;
 
 const DEFAULT_CHANNELS = [
-  {
-    key: 'askIt',
-    name: 'ask-it',
-    displayName: '#ask-it',
-    channelId: process.env.SLACK_ASK_IT_CHANNEL_ID || 'CTHCKD6J2'
-  },
   {
     key: 'teamItSupport',
     name: 'team-it-support',
     displayName: '#team-it-support',
     channelId: process.env.SLACK_TEAM_IT_SUPPORT_CHANNEL_ID || null
+  },
+  {
+    key: 'askIt',
+    name: 'ask-it',
+    displayName: '#ask-it',
+    channelId: process.env.SLACK_ASK_IT_CHANNEL_ID || 'CTHCKD6J2'
   }
 ];
 
@@ -97,7 +101,7 @@ function wait(ms) {
 }
 
 function slackRequest(path, token, attempt = 0) {
-  const maxAttempts = 3;
+  const maxAttempts = 5;
 
   return new Promise((resolve, reject) => {
     const req = https.request({
@@ -123,7 +127,7 @@ function slackRequest(path, token, attempt = 0) {
           const retryAfterSeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
 
           if (res.statusCode === 429 && attempt < maxAttempts - 1) {
-            const delayMs = ((retryAfterSeconds || 2) * 1000) + (attempt * 500);
+            const delayMs = Math.max((retryAfterSeconds || 15) * 1000, RATE_LIMIT_RECOVERY_MS) + (attempt * 1000);
             await wait(delayMs);
             try {
               resolve(await slackRequest(path, token, attempt + 1));
@@ -184,7 +188,7 @@ async function fetchChannelMessages(channelId, startDate, endDate, token) {
   let hasMore = true;
 
   while (hasMore) {
-    let path = `/api/conversations.history?channel=${channelId}&oldest=${oldest}&latest=${latest}&limit=200&inclusive=true`;
+    let path = `/api/conversations.history?channel=${channelId}&oldest=${oldest}&latest=${latest}&limit=${HISTORY_PAGE_LIMIT}&inclusive=true`;
     if (cursor) {
       path += `&cursor=${encodeURIComponent(cursor)}`;
     }
@@ -193,9 +197,26 @@ async function fetchChannelMessages(channelId, startDate, endDate, token) {
     messages.push(...(response.messages || []));
     hasMore = response.has_more === true;
     cursor = response.response_metadata?.next_cursor || null;
+
+    if (hasMore) {
+      await wait(BETWEEN_PAGE_DELAY_MS);
+    }
   }
 
   return messages;
+}
+
+async function fetchChannelMessagesWithRecovery(channelId, startDate, endDate, token) {
+  try {
+    return await fetchChannelMessages(channelId, startDate, endDate, token);
+  } catch (error) {
+    if (error instanceof SlackApiError && error.statusCode === 429) {
+      await wait(RATE_LIMIT_RECOVERY_MS);
+      return fetchChannelMessages(channelId, startDate, endDate, token);
+    }
+
+    throw error;
+  }
 }
 
 function normalizeSlackText(text) {
@@ -481,6 +502,10 @@ async function fetchMonthlySlackInsights(startDate, endDate, label, token) {
   const channels = [];
 
   for (const channelConfig of DEFAULT_CHANNELS) {
+    if (channels.length > 0) {
+      await wait(BETWEEN_CHANNEL_DELAY_MS);
+    }
+
     try {
       const channelId = await resolveChannelId(channelConfig, token);
       if (!channelId) {
@@ -491,7 +516,7 @@ async function fetchMonthlySlackInsights(startDate, endDate, label, token) {
         continue;
       }
 
-      const messages = await fetchChannelMessages(channelId, startDate, endDate, token);
+      const messages = await fetchChannelMessagesWithRecovery(channelId, startDate, endDate, token);
       const summary = analyzeChannel(messages, channelConfig);
       channels.push(summary);
       console.log(`  ${channelConfig.displayName}: ${summary.messageCount} messages, ${summary.uniqueUsers} users`);
