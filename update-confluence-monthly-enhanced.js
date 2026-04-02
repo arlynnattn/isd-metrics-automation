@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const { saveMonthlyMetrics } = require('./save-metrics-to-json');
 const { fetchMonthlySlackInsights } = require('./slack-insights');
+const { getDataQualityIssues, calculateAdjustedMetrics } = require('./shared-metrics');
 
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
@@ -789,11 +790,22 @@ async function updateConfluencePage(pageId, htmlContent, pageTitle) {
  */
 function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, previousMonth) {
   const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'long', timeStyle: 'short' });
+  const currentIssues = getDataQualityIssues(new Date(currentMetrics.start), new Date(currentMetrics.end));
+  const currentAdjustedMetrics = calculateAdjustedMetrics(
+    {
+      avgTTFR: parseFloat(currentMetrics.avgTTFR),
+      avgTTR: parseFloat(currentMetrics.avgTTR),
+      overallSlaPercent: currentMetrics.overallSlaPercent
+    },
+    currentIssues
+  );
+  const displayCurrentTTFR = currentAdjustedMetrics.hasAdjustedMetrics ? currentAdjustedMetrics.adjusted.avgTTFR : currentMetrics.avgTTFR;
+  const displayCurrentTTR = currentAdjustedMetrics.hasAdjustedMetrics ? currentAdjustedMetrics.adjusted.avgTTR : currentMetrics.avgTTR;
 
   // Calculate changes
   const resolvedChange = calculateMoMChange(previousMetrics.resolvedCount, currentMetrics.resolvedCount);
-  const ttfrChange = calculateMoMChange(previousMetrics.avgTTFR, currentMetrics.avgTTFR, true);
-  const ttrChange = calculateMoMChange(previousMetrics.avgTTR, currentMetrics.avgTTR, true);
+  const ttfrChange = calculateMoMChange(previousMetrics.avgTTFR, displayCurrentTTFR, true);
+  const ttrChange = calculateMoMChange(previousMetrics.avgTTR, displayCurrentTTR, true);
   const slaChange = calculateMoMChange(previousMetrics.overallSlaPercent, currentMetrics.overallSlaPercent);
   const automationChange = calculateMoMChange(previousMetrics.automationPercent, currentMetrics.automationPercent);
 
@@ -868,13 +880,13 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
     </tr>
     <tr>
       <td><p>Time to First Response (SLA: 2 hrs)</p></td>
-      <td><p>${formatTime(currentMetrics.avgTTFR)}</p></td>
+      <td><p>${formatTime(displayCurrentTTFR)}</p></td>
       <td><p>${formatTime(previousMetrics.avgTTFR)}</p></td>
       <td><p>${ttfrChange}</p></td>
     </tr>
     <tr>
       <td><p>Time to Resolution (SLA: 16 hrs)</p></td>
-      <td><p>${formatTime(currentMetrics.avgTTR)}</p></td>
+      <td><p>${formatTime(displayCurrentTTR)}</p></td>
       <td><p>${formatTime(previousMetrics.avgTTR)}</p></td>
       <td><p>${ttrChange}</p></td>
     </tr>
@@ -964,6 +976,8 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
 
 <p><strong>Resilience Impact:</strong> Automation absorbed workload gaps when team members were unavailable—demonstrating operational continuity without requiring overtime or degraded service quality.</p>
 
+${currentAdjustedMetrics.hasAdjustedMetrics ? `<p><strong>Data Quality Note:</strong> March time metrics are displayed using adjusted values for readability due to the known clock-cleanup anomaly. Raw system-of-record values remain available in the analyst report.</p>` : ''}
+
 <h2>Workforce Changes</h2>
 <p><strong>IT Ops completed onboarding and offboarding for the following workforce changes this period:</strong></p>
 
@@ -1001,7 +1015,7 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
 <ul>
   <li><strong>Automation Provides Operational Resilience:</strong> Team maintained ${currentMetrics.overallSlaPercent}% SLA performance despite reduced availability (JP partial OOO)—automation ensured service continuity and demonstrates that automation isn't just efficiency, it's business continuity insurance against PTO, illness, and turnover</li>
   <li><strong>2 Active Engineers + Automation = Full Team Capacity:</strong> ${currentMetrics.resolvedCount} tickets resolved this month with primary workload carried by Artie and Carlos—automation absorbed gaps without requiring overtime or degraded quality, proving the scalability model works under real-world staffing constraints</li>
-  <li><strong>SLA Performance Constrained by Approvals, Not IT:</strong> ${currentMetrics.overallSlaPercent}% SLA achievement with ${formatTime(currentMetrics.avgTTR)} resolution speed confirms IT execution is fast—remaining gaps driven by approval workflow delays outside IT's control, representing next optimization opportunity</li>
+  <li><strong>SLA Performance Constrained by Approvals, Not IT:</strong> ${currentMetrics.overallSlaPercent}% SLA achievement with ${formatTime(displayCurrentTTR)} resolution speed confirms IT execution is fast—remaining gaps driven by approval workflow delays outside IT's control, representing next optimization opportunity</li>
 </ul>
 
 <h2>Strategic Focus Areas</h2>
@@ -1009,7 +1023,7 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
 <h3>What's Working</h3>
 <ul>
   <li><strong>Automation Infrastructure:</strong> ${currentMetrics.automationPercent}% of tickets resolved without human touch—proven scalability model that enables growth without linear cost increases</li>
-  <li><strong>Execution Speed:</strong> ${formatTime(currentMetrics.avgTTR)} average resolution with ${currentMetrics.overallSlaPercent}% SLA performance—IT execution is not the constraint</li>
+  <li><strong>Execution Speed:</strong> ${formatTime(displayCurrentTTR)} average resolution with ${currentMetrics.overallSlaPercent}% SLA performance—IT execution is not the constraint</li>
   <li><strong>Service Consistency:</strong> ${currentMetrics.csat.avgScore} CSAT reflects reliable, predictable service delivery enabled by automated workflows</li>
 </ul>
 

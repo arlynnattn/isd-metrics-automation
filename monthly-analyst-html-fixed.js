@@ -334,7 +334,7 @@ ${narrativeConfidence.level !== 'confident' ? '<p><em>Note: Root cause analysis 
     <ul>
       <li>Target: ${currentMetrics.saasAppCounts[0]?.[0] || 'Top app'} access requests (${currentMetrics.saasAppCounts[0]?.[1] || 0}/month) for self-service automation</li>
       <li>Goal: Increase automation from ${currentMetrics.automationPercent}% to 10%+ within quarter</li>
-      <li>ROI: Reclaim ~${(parseFloat(currentTTR) * currentMetrics.resolvedCount * 0.05).toFixed(0)} hours/month in manual work</li>
+      <li>ROI: Reclaim ~${(parseFloat(narrativeTTR) * currentMetrics.resolvedCount * 0.05).toFixed(0)} hours/month in manual work</li>
     </ul>
   </li>
   <li><strong>Approval Workflow Optimization:</strong>
@@ -365,7 +365,7 @@ ${narrativeConfidence.level !== 'confident' ? '<p><em>Note: Root cause analysis 
   <li>SLA Achievement: Maintain ≥95% (currently ${currentMetrics.overallSlaPercent}%)</li>
   <li>Automation Rate: Increase to 10%+ (currently ${currentMetrics.automationPercent}%)</li>
   <li>CSAT: Maintain ≥4.8/5.0 (currently ${currentMetrics.csat.avgScore})</li>
-  <li>TTR: Reduce to <12h average for IT-controlled tickets (currently ${formatTime(currentTTR)})</li>
+  <li>TTR: Reduce to <12h average for IT-controlled tickets (currently ${formatTime(narrativeTTR)})</li>
 </ul>
 
 <hr />

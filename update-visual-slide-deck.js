@@ -7,6 +7,7 @@
 
 const https = require('https');
 const { loadMonthlyMetrics } = require('./save-metrics-to-json');
+const { getDataQualityIssues, calculateAdjustedMetrics } = require('./shared-metrics');
 
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
@@ -105,11 +106,22 @@ async function updateVisualSlideDeck() {
 
   const { currentMonth: current, previousMonth: previous } = metrics;
   const months = getMonthNames();
+  const dataQualityIssues = getDataQualityIssues(new Date(current.start), new Date(current.end));
+  const adjustedMetricsData = calculateAdjustedMetrics(
+    {
+      avgTTFR: parseFloat(current.avgTTFR),
+      avgTTR: parseFloat(current.avgTTR),
+      overallSlaPercent: current.overallSlaPercent
+    },
+    dataQualityIssues
+  );
+  const displayTTFR = adjustedMetricsData.hasAdjustedMetrics ? adjustedMetricsData.adjusted.avgTTFR : current.avgTTFR;
+  const displayTTR = adjustedMetricsData.hasAdjustedMetrics ? adjustedMetricsData.adjusted.avgTTR : current.avgTTR;
 
   // Extract key metrics
   const currentTickets = current.resolvedCount || 0;
-  const ttfr = formatHours(current.avgTTFR);
-  const ttr = formatHours(current.avgTTR);
+  const ttfr = formatHours(displayTTFR);
+  const ttr = formatHours(displayTTR);
   const csatScore = current.csat?.avgScore;
   const csat = typeof csatScore === 'number' ? csatScore.toFixed(1) : (csatScore || 'N/A');
   const csatResponses = current.csat?.totalResponses || 0;
@@ -189,7 +201,7 @@ async function updateVisualSlideDeck() {
     },
     version: {
       number: page.version.number + 1,
-      message: `Auto-updated with ${months.current} metrics: ${currentTickets} tickets, ${ttfr} TTFR, ${ttr} TTR, ${csat}/5.0 CSAT, ${automationRate}% automation, workforce: ${totalOnboarding} onboard/${totalOffboarding} offboard (net ${netChange > 0 ? '+' : ''}${netChange})`
+      message: `Auto-updated with ${months.current} metrics: ${currentTickets} tickets, ${ttfr} TTFR, ${ttr} TTR, ${csat}/5.0 CSAT, ${automationRate}% automation, workforce: ${totalOnboarding} onboard/${totalOffboarding} offboard (net ${netChange > 0 ? '+' : ''}${netChange})${adjustedMetricsData.hasAdjustedMetrics ? ' using adjusted time metrics' : ''}`
     }
   };
 
