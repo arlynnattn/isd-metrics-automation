@@ -10,13 +10,13 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { saveMonthlyMetrics } = require('./save-metrics-to-json');
+const { fetchMonthlySlackInsights } = require('./slack-insights');
 
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
 const CONFLUENCE_PAGE_ID = '6415089689'; // ISD Monthly Metrics page
 const CONFLUENCE_SPACE_KEY = 'ISD';
 const ASSETS_WORKSPACE_ID = '0e0847de-b6ef-45db-b74f-45e404e34d0c';
-const SLACK_CHANNEL_ID = 'CTHCKD6J2'; // #ask-it
 
 // SLA Targets
 const TTFR_SLA_HOURS = 2;
@@ -43,7 +43,7 @@ if (!ATLASSIAN_EMAIL || !JIRA_API_TOKEN) {
 }
 
 if (!SLACK_BOT_TOKEN) {
-  console.warn('Warning: SLACK_BOT_TOKEN not set - Slack metrics will be skipped');
+  console.warn('Warning: SLACK_BOT_TOKEN not set - Slack insights will be skipped');
 }
 
 const JIRA_AUTH_HEADER = 'Basic ' + Buffer.from(`${ATLASSIAN_EMAIL}:${JIRA_API_TOKEN}`).toString('base64');
@@ -164,103 +164,6 @@ async function fetchCSAT(startDate, endDate, monthLabel) {
       avgScore: 'Error',
       totalResponses: 0,
       scores: {}
-    };
-  }
-}
-
-/**
- * Get Slack channel ID by name
- */
-async function getSlackChannelId(channelName) {
-  try {
-    const path = '/api/conversations.list?types=public_channel,private_channel&limit=1000';
-    const response = await makeRequest('slack.com', path, 'GET', null, {
-      'Authorization': `Bearer ${SLACK_BOT_TOKEN}`
-    });
-
-    if (!response.ok) {
-      throw new Error(`Slack API error: ${response.error || 'Unknown error'}`);
-    }
-
-    const channel = response.channels.find(ch => ch.name === channelName);
-    if (!channel) {
-      throw new Error(`Channel #${channelName} not found`);
-    }
-
-    return channel.id;
-  } catch (error) {
-    console.error(`Error getting Slack channel ID: ${error.message}`);
-    return null;
-  }
-}
-
-/**
- * Fetch Slack metrics for #ask-it channel
- */
-async function fetchSlackMetrics(startDate, endDate, monthLabel) {
-  if (!SLACK_BOT_TOKEN) {
-    console.log(`Skipping Slack metrics for ${monthLabel} - no token provided`);
-    return {
-      messageCount: 'N/A',
-      uniqueUsers: 'N/A'
-    };
-  }
-
-  console.log(`\nFetching Slack metrics for ${monthLabel}...`);
-
-  try {
-    // Use hardcoded #ask-it channel ID
-    const channelId = SLACK_CHANNEL_ID;
-    console.log(`Using #ask-it channel ID: ${channelId}`);
-
-    // Fetch messages in date range
-    const oldest = Math.floor(startDate.getTime() / 1000);
-    const latest = Math.floor(endDate.getTime() / 1000);
-
-    let allMessages = [];
-    let cursor = null;
-    let hasMore = true;
-
-    while (hasMore) {
-      let path = `/api/conversations.history?channel=${channelId}&oldest=${oldest}&latest=${latest}&limit=200`;
-      if (cursor) {
-        path += `&cursor=${cursor}`;
-      }
-
-      const response = await makeRequest('slack.com', path, 'GET', null, {
-        'Authorization': `Bearer ${SLACK_BOT_TOKEN}`
-      });
-
-      if (!response.ok) {
-        throw new Error(`Slack API error: ${response.error || 'Unknown error'}`);
-      }
-
-      allMessages = allMessages.concat(response.messages || []);
-
-      hasMore = response.has_more;
-      cursor = response.response_metadata?.next_cursor;
-    }
-
-    // Count unique users (exclude bots)
-    const uniqueUsers = new Set();
-    for (const msg of allMessages) {
-      if (!msg.bot_id && msg.user) {
-        uniqueUsers.add(msg.user);
-      }
-    }
-
-    console.log(`Found ${allMessages.length} messages from ${uniqueUsers.size} unique users`);
-
-    return {
-      messageCount: allMessages.length,
-      uniqueUsers: uniqueUsers.size
-    };
-
-  } catch (error) {
-    console.error(`Error fetching Slack metrics: ${error.message}`);
-    return {
-      messageCount: 'Error',
-      uniqueUsers: 'Error'
     };
   }
 }
@@ -900,6 +803,10 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
 
   // Calculate FTE capacity (1 month period)
   const fteSaved = calculateFTE(currentMetrics.humanTimeReclaimed, 1);
+  const currentAskIt = getSlackChannelSummary(currentMetrics.slack, '#ask-it');
+  const currentTeamSupport = getSlackChannelSummary(currentMetrics.slack, '#team-it-support');
+  const previousAskIt = getSlackChannelSummary(previousMetrics.slack, '#ask-it');
+  const previousTeamSupport = getSlackChannelSummary(previousMetrics.slack, '#team-it-support');
 
   let html = `
 <h1>IT Ops Metrics - ${currentMonth.label}</h1>
@@ -930,9 +837,21 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
       <td><p>${resolvedChange}</p></td>
     </tr>
     <tr>
-      <td><p>#ask-it Slack Activity</p></td>
-      <td><p>${currentMetrics.slack.messageCount} msgs, ${currentMetrics.slack.uniqueUsers} users</p></td>
-      <td><p>${previousMetrics.slack.messageCount} msgs, ${previousMetrics.slack.uniqueUsers} users</p></td>
+      <td><p>Slack Support Signals</p></td>
+      <td><p>${formatSlackMetricSummary(currentMetrics.slack)}</p></td>
+      <td><p>${formatSlackMetricSummary(previousMetrics.slack)}</p></td>
+      <td><p>-</p></td>
+    </tr>
+    <tr>
+      <td><p>#ask-it Activity</p></td>
+      <td><p>${formatSlackChannelSummary(currentAskIt)}</p></td>
+      <td><p>${formatSlackChannelSummary(previousAskIt)}</p></td>
+      <td><p>-</p></td>
+    </tr>
+    <tr>
+      <td><p>#team-it-support Activity</p></td>
+      <td><p>${formatSlackChannelSummary(currentTeamSupport)}</p></td>
+      <td><p>${formatSlackChannelSummary(previousTeamSupport)}</p></td>
       <td><p>-</p></td>
     </tr>
   </tbody>
@@ -1178,10 +1097,86 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
 <p><strong>SLA Breach Rate:</strong> ${currentMetrics.slaBreachPercent}%</p>
 <p><strong>Breach Count:</strong> ${currentMetrics.slaBreachCount} tickets</p>
 
+${renderSlackInsightsHTML(currentMetrics.slack)}
+
 <hr />
 `;
 
   return html;
+}
+
+function getSlackChannelSummary(slackMetrics, channelName) {
+  if (!slackMetrics || !Array.isArray(slackMetrics.channels)) {
+    return null;
+  }
+
+  return slackMetrics.channels.find((channel) => channel.channel === channelName) || null;
+}
+
+function formatSlackMetricSummary(slackMetrics) {
+  if (!slackMetrics || slackMetrics.available === false) {
+    return 'N/A';
+  }
+
+  return `${slackMetrics.messageCount} msgs, ${slackMetrics.uniqueUsers} user touches`;
+}
+
+function formatSlackChannelSummary(channelSummary) {
+  if (!channelSummary) {
+    return 'Not available';
+  }
+
+  if (channelSummary.error) {
+    return channelSummary.error;
+  }
+
+  return `${channelSummary.messageCount} msgs, ${channelSummary.uniqueUsers} users`;
+}
+
+function renderSlackInsightsHTML(slackMetrics) {
+  if (!slackMetrics || slackMetrics.available === false) {
+    return '';
+  }
+
+  const channelRows = (slackMetrics.channels || []).map((channel) => {
+    const summary = channel.error
+      ? channel.error
+      : `${channel.messageCount} messages, ${channel.uniqueUsers} users, ${channel.activeDays} active days, ${channel.incidentSignals} incident signals`;
+
+    return `
+    <tr>
+      <td><p>${channel.channel}</p></td>
+      <td><p>${summary}</p></td>
+    </tr>`;
+  }).join('');
+
+  const themeItems = (slackMetrics.overall?.topThemes || [])
+    .slice(0, 4)
+    .map((theme) => `<li><strong>${theme.label}:</strong> ${theme.count} signal matches across support channels</li>`)
+    .join('');
+
+  const notableItems = (slackMetrics.overall?.notableItems || [])
+    .slice(0, 4)
+    .map((item) => `<li><strong>${item.channel}:</strong> ${item.text} <em>(${item.reason})</em></li>`)
+    .join('');
+
+  return `
+<h2>Slack Support Signals</h2>
+<p><strong>Combined Activity:</strong> ${slackMetrics.messageCount} human-authored messages across ${slackMetrics.uniqueUsers} user touches for the month.</p>
+
+<table data-layout="default">
+  <tbody>
+    <tr>
+      <th><p><strong>Channel</strong></p></th>
+      <th><p><strong>Summary</strong></p></th>
+    </tr>
+${channelRows}
+  </tbody>
+</table>
+
+${themeItems ? `<h3>Top Themes</h3><ul>${themeItems}</ul>` : ''}
+${notableItems ? `<h3>Notable Threads / Signals</h3><ul>${notableItems}</ul>` : ''}
+`;
 }
 
 /**
@@ -1300,9 +1295,9 @@ async function main() {
     currentMetrics.createdCount = currentCreated;
     previousMetrics.createdCount = previousCreated;
 
-    // Fetch Slack metrics
-    const currentSlack = await fetchSlackMetrics(months.currentMonth.start, months.currentMonth.end, months.currentMonth.label);
-    const previousSlack = await fetchSlackMetrics(months.previousMonth.start, months.previousMonth.end, months.previousMonth.label);
+    // Fetch Slack insights
+    const currentSlack = await fetchMonthlySlackInsights(months.currentMonth.start, months.currentMonth.end, months.currentMonth.label, SLACK_BOT_TOKEN);
+    const previousSlack = await fetchMonthlySlackInsights(months.previousMonth.start, months.previousMonth.end, months.previousMonth.label, SLACK_BOT_TOKEN);
 
     currentMetrics.slack = currentSlack;
     previousMetrics.slack = previousSlack;
@@ -1345,7 +1340,10 @@ async function main() {
     console.log(`  Access Requests: ${currentMetrics.accessRequestCount}`);
     console.log(`  Top Department: ${currentMetrics.departmentBreakdown[0]?.[0]} (${currentMetrics.departmentBreakdown[0]?.[1]} tickets)`);
     console.log(`  Top SaaS App: ${currentMetrics.saasAppCounts[0]?.[0]} (${currentMetrics.saasAppCounts[0]?.[1]} requests)`);
-    console.log(`  #ask-it Slack: ${currentMetrics.slack.messageCount} msgs, ${currentMetrics.slack.uniqueUsers} users`);
+    console.log(`  Slack Support Signals: ${formatSlackMetricSummary(currentMetrics.slack)}`);
+    for (const channel of currentMetrics.slack?.channels || []) {
+      console.log(`    ${channel.channel}: ${formatSlackChannelSummary(channel)}`);
+    }
     console.log(`  CSAT: ${currentMetrics.csat.avgScore} (${currentMetrics.csat.totalResponses} reviews)`);
     console.log(`  Automation: ${currentMetrics.automationPercent}% (${currentMetrics.automatedCount} tickets)`);
     console.log(`  Avg TTR (Automated vs Human): ${formatTime(currentMetrics.avgAutomatedTTR)} vs ${formatTime(currentMetrics.avgHumanTTR)}`);

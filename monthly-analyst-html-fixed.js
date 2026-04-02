@@ -14,6 +14,50 @@ const {
 } = require('./shared-metrics');
 const { loadValidationResults } = require('./validate-metrics');
 
+function renderSlackReadoutSection(slackMetrics) {
+  if (!slackMetrics || slackMetrics.available === false) {
+    return '';
+  }
+
+  const channelRows = (slackMetrics.channels || []).map((channel) => {
+    const summary = channel.error
+      ? channel.error
+      : `${channel.messageCount} messages, ${channel.uniqueUsers} users, ${channel.activeDays} active days`;
+
+    return `
+  <tr>
+    <td style="padding: 8px; border: 1px solid #ddd;">${channel.channel}</td>
+    <td style="padding: 8px; border: 1px solid #ddd;">${summary}</td>
+  </tr>`;
+  }).join('');
+
+  const themeItems = (slackMetrics.overall?.topThemes || [])
+    .slice(0, 4)
+    .map((theme) => `<li><strong>${theme.label}:</strong> ${theme.count} signal matches</li>`)
+    .join('');
+
+  const notableItems = (slackMetrics.overall?.notableItems || [])
+    .slice(0, 4)
+    .map((item) => `<li><strong>${item.channel}:</strong> ${item.text} <em>(${item.reason})</em></li>`)
+    .join('');
+
+  return `
+<h3>Slack Support Signals</h3>
+<p><strong>Support-channel demand:</strong> ${slackMetrics.messageCount} human-authored messages across ${slackMetrics.uniqueUsers} user touches.</p>
+
+<table style="width: 100%; border-collapse: collapse;">
+  <tr style="background-color: #f5f5f5;">
+    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Channel</th>
+    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Monthly activity</th>
+  </tr>
+${channelRows}
+</table>
+
+${themeItems ? `<p><strong>Top themes:</strong></p><ul>${themeItems}</ul>` : ''}
+${notableItems ? `<p><strong>Notables for review:</strong></p><ul>${notableItems}</ul>` : ''}
+`;
+}
+
 function generateAnalystReportHTML(currentMetrics, previousMetrics) {
   const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'long', timeStyle: 'short' });
 
@@ -207,6 +251,8 @@ ${adjustedMetricsData.hasAdjustedMetrics ? '<p><em>Using adjusted metrics for ac
   <li><strong>SaaS Provisioning:</strong> ${currentMetrics.saasAppCounts[0]?.[0] || 'N/A'} leads at ${currentMetrics.saasAppCounts[0]?.[1] || 0} requests - candidate for self-service automation</li>
   <li><strong>Workforce Lifecycle:</strong> ${currentMetrics.workforce?.totalOnboarding || 0} onboardings handled smoothly - IT scaled with company growth</li>
 </ul>
+
+${renderSlackReadoutSection(currentMetrics.slack)}
 
 <h3>Automation & Efficiency</h3>
 <p><strong>Operational Resilience:</strong> ${currentMetrics.automationPercent}% automation rate supported team capacity to handle ${currentMetrics.resolvedCount} tickets despite workforce changes</p>

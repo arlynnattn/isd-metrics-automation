@@ -35,7 +35,8 @@ GitHub Actions automatically:
 
 **Automated Data Collection:**
 - ✅ Jira ticket metrics (created, resolved, SLA performance) - API-driven
-- ✅ Slack #ask-it channel activity - API-driven
+- ✅ Slack support-channel activity for #ask-it and #team-it-support - API-driven
+- ✅ Monthly Slack trend and notable-thread extraction for readouts
 - ✅ CSAT scores from Jira - API-driven
 - ✅ Department breakdown - API-driven
 - ✅ Top SaaS application requests - API-driven
@@ -129,7 +130,7 @@ Or trigger via [GitHub Actions](https://github.com/arlynnattn/isd-metrics-automa
 - **TTFR** (Time to First Response) - SLA target: 2 hours
 - **TTR** (Time to Resolution) - SLA target: 16 hours  
 - **SLA Met %** - Overall SLA performance
-- **#ask-it Slack** - Messages and unique users
+- **Slack support channels** - Messages and unique users across #ask-it and #team-it-support
 - **CSAT** - Average score and review count
 
 ### Additional Sections
