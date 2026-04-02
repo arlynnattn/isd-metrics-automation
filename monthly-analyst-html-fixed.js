@@ -31,9 +31,9 @@ function renderSlackReadoutSection(slackMetrics) {
   </tr>`;
   }).join('');
 
-  const readoutItems = (slackMetrics.overall?.leadershipReadout || [])
+  const trendItems = (slackMetrics.overall?.leadershipReadout || [])
     .slice(0, 3)
-    .map((story) => `<li><strong>${story.label}:</strong> ${toConciseWhatMatters(story.label)}</li>`)
+    .map((story) => `<li><strong>${story.label}:</strong> ${toTrendLine(story.label)}</li>`)
     .join('');
 
   const notableItems = (slackMetrics.overall?.notableItems || [])
@@ -41,7 +41,7 @@ function renderSlackReadoutSection(slackMetrics) {
     .map((item) => `<li>${toConciseNotable(item)}</li>`)
     .join('');
 
-  const watchItems = buildWatchItems(slackMetrics)
+  const whyItems = buildWhyItems(slackMetrics)
     .map((item) => `<li>${item}</li>`)
     .join('');
 
@@ -57,28 +57,28 @@ function renderSlackReadoutSection(slackMetrics) {
 ${channelRows}
 </table>
 
-${readoutItems ? `<p><strong>What matters:</strong></p><ul>${readoutItems}</ul>` : ''}
+${trendItems ? `<p><strong>Trends:</strong></p><ul>${trendItems}</ul>` : ''}
 ${notableItems ? `<p><strong>Notables:</strong></p><ul>${notableItems}</ul>` : ''}
-${watchItems ? `<p><strong>Watch:</strong></p><ul>${watchItems}</ul>` : ''}
+${whyItems ? `<p><strong>Why:</strong></p><ul>${whyItems}</ul>` : ''}
 `;
 }
 
-function toConciseWhatMatters(label) {
+function toTrendLine(label) {
   switch (label) {
     case 'Access provisioning and approvals':
-      return 'still the biggest source of support drag; this is more process friction than IT execution risk.';
+      return 'access and approval friction remained the clearest support pattern.';
     case 'Identity and authentication friction':
-      return 'continued to create employee productivity interruptions.';
+      return 'identity and authentication issues continued to interrupt employee productivity.';
     case 'Security and governance review demand':
-      return 'is pulling IT into higher-touch review work, not just fulfillment.';
+      return 'tool enablement requests increasingly pulled IT into governance-heavy review work.';
     case 'Customer or vendor-facing workflow risk':
-      return 'matters because a small number of issues can spill into external trust or revenue workflows.';
+      return 'a small set of support threads carried broader business or external visibility.';
     case 'Operational disruption / outage signals':
-      return 'needs early visibility because these are the threads most likely to become broader service issues.';
+      return 'operational disruption signals surfaced in support conversations before becoming larger issues.';
     case 'Onboarding-driven support load':
-      return 'ties support demand directly to hiring volume and access orchestration.';
+      return 'support load continued to reflect onboarding and access orchestration demand.';
     default:
-      return 'surfaced as a recurring support pattern worth leadership attention.';
+      return 'a recurring support pattern surfaced in Slack.';
   }
 }
 
@@ -96,18 +96,18 @@ function toConciseNotable(item) {
   return `${item.channel}: ${item.text} (${item.reason}).`;
 }
 
-function buildWatchItems(slackMetrics) {
+function buildWhyItems(slackMetrics) {
   const labels = new Set((slackMetrics.overall?.leadershipReadout || []).map((story) => story.label));
   const items = [];
 
   if (labels.has('Access provisioning and approvals')) {
-    items.push('Simplify approval paths for common access requests.');
+    items.push('This matters because approval-heavy work creates service friction outside core IT execution.');
   }
   if (labels.has('Security and governance review demand')) {
-    items.push('Separate governance-review work from routine support where possible.');
+    items.push('This matters because IT is absorbing more high-touch governance work, not just fulfillment.');
   }
   if (labels.has('Customer or vendor-facing workflow risk')) {
-    items.push('Flag externally visible support issues earlier.');
+    items.push('This matters because externally visible support issues can affect trust and business operations quickly.');
   }
 
   return items.slice(0, 3);
