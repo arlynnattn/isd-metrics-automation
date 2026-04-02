@@ -36,7 +36,9 @@ GitHub Actions automatically:
 **Automated Data Collection:**
 - ✅ Jira ticket metrics (created, resolved, SLA performance) - API-driven
 - ✅ Slack support-channel activity for #ask-it and #team-it-support - API-driven
-- ✅ Monthly Slack trend and notable-thread extraction for readouts
+- ✅ Monthly Slack `Trends / Notables / Why` extraction for leadership readouts
+- ✅ `#team-it-support` prioritized first during monthly Slack collection
+- ✅ Slack rate-limit retry and recovery logic for support-channel reads
 - ✅ CSAT scores from Jira - API-driven
 - ✅ Department breakdown - API-driven
 - ✅ Top SaaS application requests - API-driven
@@ -131,6 +133,7 @@ Or trigger via [GitHub Actions](https://github.com/arlynnattn/isd-metrics-automa
 - **TTR** (Time to Resolution) - SLA target: 16 hours  
 - **SLA Met %** - Overall SLA performance
 - **Slack support channels** - Messages and unique users across #ask-it and #team-it-support
+- **Slack readout signals** - leadership-ready Trends, Notables, and Why sections
 - **CSAT** - Average score and review count
 
 ### Additional Sections
@@ -145,7 +148,8 @@ Or trigger via [GitHub Actions](https://github.com/arlynnattn/isd-metrics-automa
 ### API Tokens
 The run scripts contain your API tokens (not recommended to commit to git):
 - **JIRA_API_TOKEN**: Read access to ISD project tickets
-- **SLACK_BOT_TOKEN**: Read access to #ask-it channel
+- **SLACK_BOT_TOKEN**: Read access to #ask-it and #team-it-support
+- **SLACK_TEAM_IT_SUPPORT_CHANNEL_ID**: Optional override to hardcode the `#team-it-support` channel ID
 - **CONFLUENCE_API_TOKEN**: (Optional) Write access to Confluence pages
 
 ### Jira Custom Fields
@@ -214,6 +218,14 @@ project = ISD AND created >= "2026-03-01"
 **Fix**: 
 - Check token is correct
 - Invite bot to #ask-it: `/invite @IT Metrics Bot`
+- Invite bot to #team-it-support: `/invite @IT Metrics Bot`
+
+### #team-it-support missing from Slack insights
+**Cause**: Bot not in channel, channel ID lookup failed, or Slack rate limits interrupted the read  
+**Fix**:
+- Confirm the bot is invited to `#team-it-support`
+- Optionally set `SLACK_TEAM_IT_SUPPORT_CHANNEL_ID` in GitHub Actions secrets or your local env
+- Re-run the monthly workflow if Slack returned a temporary `429` rate limit
 
 ### CSAT scores showing "N/A"  
 **Cause**: No CSAT responses in date range
