@@ -31,9 +31,9 @@ function renderSlackReadoutSection(slackMetrics) {
   </tr>`;
   }).join('');
 
-  const themeItems = (slackMetrics.overall?.topThemes || [])
-    .slice(0, 4)
-    .map((theme) => `<li><strong>${theme.label}:</strong> ${theme.count} signal matches</li>`)
+  const readoutItems = (slackMetrics.overall?.leadershipReadout || [])
+    .slice(0, 3)
+    .map((story) => `<li><strong>${story.label}:</strong> ${story.summary} <em>Stakeholder lens: ${story.stakeholder}</em></li>`)
     .join('');
 
   const notableItems = (slackMetrics.overall?.notableItems || [])
@@ -53,8 +53,8 @@ function renderSlackReadoutSection(slackMetrics) {
 ${channelRows}
 </table>
 
-${themeItems ? `<p><strong>Top themes:</strong></p><ul>${themeItems}</ul>` : ''}
-${notableItems ? `<p><strong>Notables for review:</strong></p><ul>${notableItems}</ul>` : ''}
+${readoutItems ? `<p><strong>Leadership readout:</strong></p><ul>${readoutItems}</ul>` : ''}
+${notableItems ? `<p><strong>Watchlist / examples:</strong></p><ul>${notableItems}</ul>` : ''}
 `;
 }
 

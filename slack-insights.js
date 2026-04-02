@@ -18,19 +18,87 @@ const DEFAULT_CHANNELS = [
 ];
 
 const THEME_RULES = [
-  { label: 'Access & Permissions', regex: /\b(access|permission|permissions|grant|provision|entitlement|enable|disabled)\b/i },
-  { label: 'Account & Authentication', regex: /\b(okta|mfa|sso|login|sign[\s-]?in|password|locked out|unlock|authentication)\b/i },
-  { label: 'Device & Hardware', regex: /\b(laptop|macbook|monitor|keyboard|mouse|dock|charger|hardware|device)\b/i },
-  { label: 'Network & VPN', regex: /\b(vpn|wifi|wi-fi|network|internet|connectivity|dns)\b/i },
-  { label: 'Messaging & Collaboration', regex: /\b(email|gmail|calendar|zoom|slack|teams|meeting)\b/i },
-  { label: 'Apps & SaaS', regex: /\b(github|snowflake|gong|jira|confluence|figma|salesforce|netsuite|workspace|google drive)\b/i },
-  { label: 'Onboarding & Offboarding', regex: /\b(onboarding|offboarding|new hire|new joiner|termination|employee exit|contractor)\b/i },
-  { label: 'Incidents & Outages', regex: /\b(incident|outage|sev|degraded|down|failing|broken|urgent|escalation)\b/i }
+  { label: 'Access Provisioning & Approvals', regex: /\b(access|permission|permissions|grant|provision|entitlement|enable|approval|approved)\b/i },
+  { label: 'Identity & Authentication', regex: /\b(okta|mfa|sso|login|sign[\s-]?in|password|locked out|unlock|authentication)\b/i },
+  { label: 'Endpoints & Hardware', regex: /\b(laptop|macbook|monitor|keyboard|mouse|dock|charger|hardware|device)\b/i },
+  { label: 'Network & Connectivity', regex: /\b(vpn|wifi|wi-fi|network|internet|connectivity|dns)\b/i },
+  { label: 'Collaboration Tooling', regex: /\b(email|gmail|calendar|zoom|slack|teams|meeting)\b/i },
+  { label: 'SaaS & Internal Tools', regex: /\b(github|snowflake|gong|jira|confluence|figma|salesforce|netsuite|workspace|google drive|zapier)\b/i },
+  { label: 'Employee Lifecycle', regex: /\b(onboarding|offboarding|new hire|new joiner|termination|employee exit|contractor)\b/i },
+  { label: 'Incident / Service Disruption', regex: /\b(incident|outage|sev[ -]?\d|degraded|down|failing|broken|urgent|escalation)\b/i },
+  { label: 'Security / Governance Review', regex: /\b(review|security|vendor|compliance|audit|oauth|token|scope|risk|app approval|slack app)\b/i }
 ];
 
-const INCIDENT_REGEX = /\b(incident|outage|sev[ -]?\d|degraded|down|p1|p2|urgent|escalat(?:e|ion)|major issue)\b/i;
+const LEADERSHIP_PATTERNS = [
+  {
+    key: 'approval_friction',
+    label: 'Access provisioning and approvals',
+    regex: /\b(access|approval|approved|permission|permissions|provision|grant)\b/i,
+    stakeholder: 'IT + system owners',
+    pov: 'This shows where governance and provisioning steps are creating service friction.'
+  },
+  {
+    key: 'identity_friction',
+    label: 'Identity and authentication friction',
+    regex: /\b(okta|mfa|sso|login|password|locked out|unlock|authentication)\b/i,
+    stakeholder: 'IT leadership',
+    pov: 'This is a pulse on day-to-day employee productivity blockers.'
+  },
+  {
+    key: 'security_review',
+    label: 'Security and governance review demand',
+    regex: /\b(security|review|oauth|vendor|compliance|audit|slack app|risk|scope)\b/i,
+    stakeholder: 'IT + Security',
+    pov: 'This signals where enablement work is turning into governance review work.'
+  },
+  {
+    key: 'customer_vendor_impact',
+    label: 'Customer or vendor-facing workflow risk',
+    regex: /\b(customer|client|vendor|partner|reported|get(?:ting)? emails|integration|zapier|mindbody)\b/i,
+    stakeholder: 'IT + business owners',
+    pov: 'These threads matter because they can spill beyond internal support into external trust or revenue workflows.'
+  },
+  {
+    key: 'incident_disruption',
+    label: 'Operational disruption / outage signals',
+    regex: /\b(incident|outage|sev[ -]?\d|degraded|down|urgent|escalation)\b/i,
+    stakeholder: 'IT leadership',
+    pov: 'This is where service disruption risk is surfacing in Slack before or alongside formal incident handling.'
+  },
+  {
+    key: 'onboarding_load',
+    label: 'Onboarding-driven support load',
+    regex: /\b(onboarding|new hire|new joiner|contractor)\b/i,
+    stakeholder: 'IT + People + hiring leaders',
+    pov: 'This ties support demand to workforce growth and access orchestration.'
+  }
+];
 
-function slackRequest(path, token) {
+const IMPACT_PATTERNS = [
+  { regex: /\b(customer|client|vendor|partner|mindbody|reported)\b/i, reason: 'external-facing workflow risk', weight: 8 },
+  { regex: /\b(security|compliance|oauth|audit|risk|review|slack app)\b/i, reason: 'governance or security review', weight: 7 },
+  { regex: /\b(incident|outage|sev[ -]?\d|degraded|down|urgent|escalation)\b/i, reason: 'service disruption signal', weight: 8 },
+  { regex: /\b(access|approval|permission|provision)\b/i, reason: 'access and approval friction', weight: 5 },
+  { regex: /\b(onboarding|new hire|contractor)\b/i, reason: 'workforce growth support demand', weight: 4 }
+];
+
+class SlackApiError extends Error {
+  constructor(statusCode, errorCode, message, retryAfterSeconds = null) {
+    super(message);
+    this.name = 'SlackApiError';
+    this.statusCode = statusCode;
+    this.errorCode = errorCode;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function slackRequest(path, token, attempt = 0) {
+  const maxAttempts = 3;
+
   return new Promise((resolve, reject) => {
     const req = https.request({
       hostname: 'slack.com',
@@ -40,17 +108,38 @@ function slackRequest(path, token) {
         Accept: 'application/json',
         Authorization: `Bearer ${token}`
       }
-    }, (res) => {
+    }, async (res) => {
       let data = '';
       res.on('data', (chunk) => data += chunk);
-      res.on('end', () => {
+      res.on('end', async () => {
         try {
           const parsed = JSON.parse(data);
           if (res.statusCode >= 200 && res.statusCode < 300 && parsed.ok !== false) {
             resolve(parsed);
             return;
           }
-          reject(new Error(`Slack API error (${res.statusCode}): ${parsed.error || data}`));
+
+          const retryAfterHeader = res.headers['retry-after'];
+          const retryAfterSeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : null;
+
+          if (res.statusCode === 429 && attempt < maxAttempts - 1) {
+            const delayMs = ((retryAfterSeconds || 2) * 1000) + (attempt * 500);
+            await wait(delayMs);
+            try {
+              resolve(await slackRequest(path, token, attempt + 1));
+              return;
+            } catch (error) {
+              reject(error);
+              return;
+            }
+          }
+
+          reject(new SlackApiError(
+            res.statusCode,
+            parsed.error || 'unknown_error',
+            `Slack API error (${res.statusCode}): ${parsed.error || data}`,
+            retryAfterSeconds
+          ));
         } catch (error) {
           reject(new Error(`Failed to parse Slack response: ${error.message}`));
         }
@@ -140,7 +229,13 @@ function scoreThemeMatches(text) {
     .filter(Boolean);
 }
 
-function formatExcerpt(text, maxLength = 140) {
+function scoreLeadershipPatterns(text) {
+  return LEADERSHIP_PATTERNS
+    .map((pattern) => (pattern.regex.test(text) ? pattern : null))
+    .filter(Boolean);
+}
+
+function formatExcerpt(text, maxLength = 160) {
   if (!text) {
     return 'No text preview available';
   }
@@ -152,27 +247,65 @@ function formatExcerpt(text, maxLength = 140) {
   return `${text.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
-function buildNotableReason(message, themes) {
+function summarizeThemeLabel(label) {
+  switch (label) {
+    case 'Access Provisioning & Approvals':
+      return 'Access provisioning and approval work remained the clearest demand driver.';
+    case 'Identity & Authentication':
+      return 'Authentication friction continued to create employee productivity interruptions.';
+    case 'Security / Governance Review':
+      return 'Governance review work showed up as a meaningful share of support effort.';
+    case 'Customer or vendor-facing workflow risk':
+      return 'A subset of support work had direct external or cross-functional visibility.';
+    default:
+      return `${label} surfaced as a recurring support pattern.`;
+  }
+}
+
+function buildLeadershipStory(pattern, count, coverage) {
+  const base = `${pattern.label} appeared ${count} times across ${coverage} ${coverage === 1 ? 'channel' : 'channels'}.`;
+
+  return {
+    label: pattern.label,
+    count,
+    stakeholder: pattern.stakeholder,
+    summary: `${base} ${pattern.pov}`,
+    whyItMatters: pattern.pov
+  };
+}
+
+function buildNotableReason(message) {
   const reasons = [];
 
-  if ((message.reply_count || 0) >= 5) {
-    reasons.push(`high-engagement thread (${message.reply_count} replies)`);
+  for (const impact of IMPACT_PATTERNS) {
+    if (impact.regex.test(message.normalizedText)) {
+      reasons.push(impact.reason);
+    }
+  }
+
+  if ((message.reply_count || 0) >= 10) {
+    reasons.push(`cross-functional attention (${message.reply_count} replies)`);
   }
 
   const reactionCount = (message.reactions || []).reduce((sum, reaction) => sum + (reaction.count || 0), 0);
-  if (reactionCount >= 3) {
-    reasons.push(`strong channel signal (${reactionCount} reactions)`);
+  if (reactionCount >= 5) {
+    reasons.push(`strong channel uptake (${reactionCount} reactions)`);
   }
 
-  if (INCIDENT_REGEX.test(message.normalizedText)) {
-    reasons.push('incident-style language');
+  return reasons[0] || 'support signal worth leadership review';
+}
+
+function scoreNotable(message) {
+  const reactionCount = (message.reactions || []).reduce((sum, reaction) => sum + (reaction.count || 0), 0);
+  let score = (message.reply_count || 0) * 2 + reactionCount;
+
+  for (const impact of IMPACT_PATTERNS) {
+    if (impact.regex.test(message.normalizedText)) {
+      score += impact.weight;
+    }
   }
 
-  if (themes.includes('Access & Permissions') || themes.includes('Account & Authentication')) {
-    reasons.push('common support driver');
-  }
-
-  return reasons[0] || 'notable support conversation';
+  return score;
 }
 
 function analyzeChannel(messages, channelConfig) {
@@ -187,6 +320,7 @@ function analyzeChannel(messages, channelConfig) {
   const uniqueUsers = new Set();
   const activeDays = new Set();
   const themeCounts = {};
+  const patternCounts = {};
   let incidentSignals = 0;
   let threadCount = 0;
 
@@ -198,44 +332,56 @@ function analyzeChannel(messages, channelConfig) {
       threadCount++;
     }
 
-    if (INCIDENT_REGEX.test(message.normalizedText)) {
-      incidentSignals++;
-    }
-
     const themes = scoreThemeMatches(message.normalizedText);
     for (const theme of themes) {
       themeCounts[theme] = (themeCounts[theme] || 0) + 1;
+      if (theme === 'Incident / Service Disruption') {
+        incidentSignals++;
+      }
+    }
+
+    const patterns = scoreLeadershipPatterns(message.normalizedText);
+    for (const pattern of patterns) {
+      patternCounts[pattern.key] = (patternCounts[pattern.key] || 0) + 1;
     }
   }
 
   const topThemes = Object.entries(themeCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
-    .map(([label, count]) => ({ label, count }));
+    .map(([label, count]) => ({
+      label,
+      count,
+      summary: summarizeThemeLabel(label)
+    }));
+
+  const leadershipStories = Object.entries(patternCounts)
+    .map(([key, count]) => {
+      const pattern = LEADERSHIP_PATTERNS.find((item) => item.key === key);
+      return pattern ? buildLeadershipStory(pattern, count, 1) : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
 
   const notables = humanMessages
     .map((message) => {
-      const themes = scoreThemeMatches(message.normalizedText);
-      const reactionCount = (message.reactions || []).reduce((sum, reaction) => sum + (reaction.count || 0), 0);
-      const score =
-        (message.reply_count || 0) * 3 +
-        reactionCount * 2 +
-        (INCIDENT_REGEX.test(message.normalizedText) ? 4 : 0) +
-        Math.min(themes.length, 2);
-
+      const score = scoreNotable(message);
+      const patterns = scoreLeadershipPatterns(message.normalizedText).map((pattern) => pattern.label);
       return {
         ts: message.ts,
         text: formatExcerpt(message.normalizedText),
         replyCount: message.reply_count || 0,
-        reactionCount,
-        themes,
+        reactionCount: (message.reactions || []).reduce((sum, reaction) => sum + (reaction.count || 0), 0),
+        themes: scoreThemeMatches(message.normalizedText),
+        patterns,
         score,
-        reason: buildNotableReason(message, themes)
+        reason: buildNotableReason(message)
       };
     })
-    .filter((item) => item.score > 0)
+    .filter((item) => item.score >= 10 || item.patterns.length > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 3);
+    .slice(0, 4);
 
   return {
     channel: channelConfig.displayName,
@@ -245,6 +391,7 @@ function analyzeChannel(messages, channelConfig) {
     threadCount,
     incidentSignals,
     topThemes,
+    leadershipStories,
     notables
   };
 }
@@ -252,11 +399,18 @@ function analyzeChannel(messages, channelConfig) {
 function summarizeAcrossChannels(channelSummaries) {
   const availableChannels = channelSummaries.filter((summary) => !summary.error);
   const themeCounts = {};
+  const storyCounts = {};
+  const storyCoverage = {};
   const combinedNotables = [];
 
   for (const channel of availableChannels) {
     for (const theme of channel.topThemes || []) {
       themeCounts[theme.label] = (themeCounts[theme.label] || 0) + theme.count;
+    }
+
+    for (const story of channel.leadershipStories || []) {
+      storyCounts[story.label] = (storyCounts[story.label] || 0) + story.count;
+      storyCoverage[story.label] = (storyCoverage[story.label] || 0) + 1;
     }
 
     for (const notable of channel.notables || []) {
@@ -269,8 +423,25 @@ function summarizeAcrossChannels(channelSummaries) {
 
   const topThemes = Object.entries(themeCounts)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([label, count]) => ({ label, count }));
+    .slice(0, 4)
+    .map(([label, count]) => ({
+      label,
+      count,
+      summary: summarizeThemeLabel(label)
+    }));
+
+  const leadershipReadout = Object.entries(storyCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([label, count]) => {
+      const pattern = LEADERSHIP_PATTERNS.find((item) => item.label === label);
+      return buildLeadershipStory(pattern, count, storyCoverage[label] || 1);
+    });
+
+  const notableItems = combinedNotables
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4)
+    .map(({ score, ...item }) => item);
 
   return {
     totalMessages: availableChannels.reduce((sum, channel) => sum + channel.messageCount, 0),
@@ -278,11 +449,15 @@ function summarizeAcrossChannels(channelSummaries) {
     totalActiveDays: availableChannels.reduce((sum, channel) => sum + channel.activeDays, 0),
     totalIncidentSignals: availableChannels.reduce((sum, channel) => sum + channel.incidentSignals, 0),
     topThemes,
-    notableItems: combinedNotables
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5)
-      .map(({ score, ...item }) => item)
+    leadershipReadout,
+    notableItems
   };
+}
+
+function buildOverview(overall) {
+  return (overall.leadershipReadout || [])
+    .slice(0, 3)
+    .map((story) => story.summary);
 }
 
 async function fetchMonthlySlackInsights(startDate, endDate, label, token) {
@@ -295,6 +470,7 @@ async function fetchMonthlySlackInsights(startDate, endDate, label, token) {
       channels: [],
       overall: {
         topThemes: [],
+        leadershipReadout: [],
         notableItems: []
       }
     };
@@ -310,7 +486,7 @@ async function fetchMonthlySlackInsights(startDate, endDate, label, token) {
       if (!channelId) {
         channels.push({
           channel: channelConfig.displayName,
-          error: `Channel not found or bot is not a member`
+          error: 'Channel not found or bot is not a member'
         });
         continue;
       }
@@ -320,22 +496,25 @@ async function fetchMonthlySlackInsights(startDate, endDate, label, token) {
       channels.push(summary);
       console.log(`  ${channelConfig.displayName}: ${summary.messageCount} messages, ${summary.uniqueUsers} users`);
     } catch (error) {
+      const errorMessage = error instanceof SlackApiError && error.statusCode === 429
+        ? 'Rate limited after retries; rerun should recover'
+        : error.message;
+
       channels.push({
         channel: channelConfig.displayName,
-        error: error.message
+        error: errorMessage
       });
-      console.warn(`  ${channelConfig.displayName}: ${error.message}`);
+      console.warn(`  ${channelConfig.displayName}: ${errorMessage}`);
     }
   }
 
   const overall = summarizeAcrossChannels(channels);
-  const overview = overall.topThemes.slice(0, 3).map((theme) => `${theme.label} (${theme.count} mentions)`);
 
   return {
     available: channels.some((channel) => !channel.error),
     messageCount: overall.totalMessages,
     uniqueUsers: overall.totalUniqueUsers,
-    overview,
+    overview: buildOverview(overall),
     channels,
     overall
   };
