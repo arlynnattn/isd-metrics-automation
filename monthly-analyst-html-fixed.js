@@ -33,12 +33,16 @@ function renderSlackReadoutSection(slackMetrics) {
 
   const readoutItems = (slackMetrics.overall?.leadershipReadout || [])
     .slice(0, 3)
-    .map((story) => `<li><strong>${story.label}:</strong> ${story.summary} <em>Stakeholder lens: ${story.stakeholder}</em></li>`)
+    .map((story) => `<li><strong>${story.label}:</strong> ${toConciseWhatMatters(story.label)}</li>`)
     .join('');
 
   const notableItems = (slackMetrics.overall?.notableItems || [])
-    .slice(0, 4)
-    .map((item) => `<li><strong>${item.channel}:</strong> ${item.text} <em>(${item.reason})</em></li>`)
+    .slice(0, 3)
+    .map((item) => `<li>${toConciseNotable(item)}</li>`)
+    .join('');
+
+  const watchItems = buildWatchItems(slackMetrics)
+    .map((item) => `<li>${item}</li>`)
     .join('');
 
   return `
@@ -53,9 +57,60 @@ function renderSlackReadoutSection(slackMetrics) {
 ${channelRows}
 </table>
 
-${readoutItems ? `<p><strong>Leadership readout:</strong></p><ul>${readoutItems}</ul>` : ''}
-${notableItems ? `<p><strong>Watchlist / examples:</strong></p><ul>${notableItems}</ul>` : ''}
+${readoutItems ? `<p><strong>What matters:</strong></p><ul>${readoutItems}</ul>` : ''}
+${notableItems ? `<p><strong>Notables:</strong></p><ul>${notableItems}</ul>` : ''}
+${watchItems ? `<p><strong>Watch:</strong></p><ul>${watchItems}</ul>` : ''}
 `;
+}
+
+function toConciseWhatMatters(label) {
+  switch (label) {
+    case 'Access provisioning and approvals':
+      return 'still the biggest source of support drag; this is more process friction than IT execution risk.';
+    case 'Identity and authentication friction':
+      return 'continued to create employee productivity interruptions.';
+    case 'Security and governance review demand':
+      return 'is pulling IT into higher-touch review work, not just fulfillment.';
+    case 'Customer or vendor-facing workflow risk':
+      return 'matters because a small number of issues can spill into external trust or revenue workflows.';
+    case 'Operational disruption / outage signals':
+      return 'needs early visibility because these are the threads most likely to become broader service issues.';
+    case 'Onboarding-driven support load':
+      return 'ties support demand directly to hiring volume and access orchestration.';
+    default:
+      return 'surfaced as a recurring support pattern worth leadership attention.';
+  }
+}
+
+function toConciseNotable(item) {
+  if (/oauth|google workspace cli/i.test(item.text)) {
+    return 'Google Workspace CLI / OAuth setup: enablement request with governance complexity.';
+  }
+  if (/slack app|review/i.test(item.text)) {
+    return 'Slack app review request: support work crossing into security/compliance review.';
+  }
+  if (/mindbody|zapier|customer|vendor|partner/i.test(item.text)) {
+    return 'Mindbody / Zapier thread: potential external-facing workflow risk.';
+  }
+
+  return `${item.channel}: ${item.text} (${item.reason}).`;
+}
+
+function buildWatchItems(slackMetrics) {
+  const labels = new Set((slackMetrics.overall?.leadershipReadout || []).map((story) => story.label));
+  const items = [];
+
+  if (labels.has('Access provisioning and approvals')) {
+    items.push('Simplify approval paths for common access requests.');
+  }
+  if (labels.has('Security and governance review demand')) {
+    items.push('Separate governance-review work from routine support where possible.');
+  }
+  if (labels.has('Customer or vendor-facing workflow risk')) {
+    items.push('Flag externally visible support issues earlier.');
+  }
+
+  return items.slice(0, 3);
 }
 
 function generateAnalystReportHTML(currentMetrics, previousMetrics) {
