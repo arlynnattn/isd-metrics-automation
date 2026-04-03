@@ -1162,7 +1162,23 @@ function formatSlackChannelSummary(channelSummary) {
     return channelSummary.error;
   }
 
+  if (channelSummary.channel === '#team-it-support') {
+    return formatInternalOpsSummary(channelSummary);
+  }
+
   return `${channelSummary.messageCount} msgs, ${channelSummary.uniqueUsers} users`;
+}
+
+function formatInternalOpsSummary(channelSummary) {
+  const themes = (channelSummary.topThemes || []).slice(0, 2).map((theme) => theme.label);
+  const notableReason = channelSummary.notables?.[0]?.reason || null;
+
+  if (themes.length === 0 && !notableReason) {
+    return 'Internal ops channel monitored for changes, outages, approvals, and tooling signals';
+  }
+
+  const themeText = themes.length > 0 ? themes.join(' + ') : 'Operational signals';
+  return notableReason ? `${themeText}; top signal: ${notableReason}` : themeText;
 }
 
 function renderSlackInsightsHTML(slackMetrics) {
@@ -1172,7 +1188,9 @@ function renderSlackInsightsHTML(slackMetrics) {
 
   const visibleChannels = (slackMetrics.channels || []).filter((channel) => !channel.error);
   const channelRows = visibleChannels.map((channel) => {
-    const summary = `${channel.messageCount} messages, ${channel.uniqueUsers} users, ${channel.activeDays} active days, ${channel.incidentSignals} incident signals`;
+    const summary = channel.channel === '#team-it-support'
+      ? formatInternalChannelInsight(channel)
+      : `${channel.messageCount} messages, ${channel.uniqueUsers} users, ${channel.activeDays} active days, ${channel.incidentSignals} incident signals`;
 
     return `
     <tr>
@@ -1213,6 +1231,25 @@ ${trendItems ? `<h3>Trends</h3><ul>${trendItems}</ul>` : ''}
 ${notableItems ? `<h3>Notables</h3><ul>${notableItems}</ul>` : ''}
 ${whyItems ? `<h3>Why</h3><ul>${whyItems}</ul>` : ''}
 `;
+}
+
+function formatInternalChannelInsight(channel) {
+  const themes = (channel.topThemes || []).slice(0, 3).map((theme) => theme.label);
+  const stories = (channel.leadershipStories || []).slice(0, 2).map((story) => story.label);
+  const notableReason = channel.notables?.[0]?.reason || null;
+
+  const parts = [];
+  if (stories.length > 0) {
+    parts.push(`Signals: ${stories.join('; ')}`);
+  }
+  if (themes.length > 0) {
+    parts.push(`Themes: ${themes.join(', ')}`);
+  }
+  if (notableReason) {
+    parts.push(`Top notable: ${notableReason}`);
+  }
+
+  return parts.join(' | ') || 'Internal ops channel monitored for operational change signals';
 }
 
 function toTrendLine(label) {

@@ -32,7 +32,9 @@ function renderSlackReadoutSection(slackMetrics) {
 
   const visibleChannels = (slackMetrics.channels || []).filter((channel) => !channel.error);
   const channelRows = visibleChannels.map((channel) => {
-    const summary = `${channel.messageCount} messages, ${channel.uniqueUsers} users, ${channel.activeDays} active days`;
+    const summary = channel.channel === '#team-it-support'
+      ? formatInternalChannelInsight(channel)
+      : `${channel.messageCount} messages, ${channel.uniqueUsers} users, ${channel.activeDays} active days`;
 
     return `
   <tr>
@@ -121,6 +123,25 @@ function buildWhyItems(slackMetrics) {
   }
 
   return items.slice(0, 3);
+}
+
+function formatInternalChannelInsight(channel) {
+  const themes = (channel.topThemes || []).slice(0, 3).map((theme) => theme.label);
+  const stories = (channel.leadershipStories || []).slice(0, 2).map((story) => story.label);
+  const notableReason = channel.notables?.[0]?.reason || null;
+
+  const parts = [];
+  if (stories.length > 0) {
+    parts.push(`Signals: ${stories.join('; ')}`);
+  }
+  if (themes.length > 0) {
+    parts.push(`Themes: ${themes.join(', ')}`);
+  }
+  if (notableReason) {
+    parts.push(`Top notable: ${notableReason}`);
+  }
+
+  return parts.join(' | ') || 'Internal ops channel monitored for operational change signals';
 }
 
 function generateAnalystReportHTML(currentMetrics, previousMetrics) {
