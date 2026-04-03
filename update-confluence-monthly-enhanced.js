@@ -12,6 +12,7 @@ const path = require('path');
 const { saveMonthlyMetrics } = require('./save-metrics-to-json');
 const { fetchMonthlySlackInsights } = require('./slack-insights');
 const { getDataQualityIssues, calculateAdjustedMetrics } = require('./shared-metrics');
+const { applyValidatedMetricOverrides } = require('./validated-metric-overrides');
 
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
@@ -1406,8 +1407,10 @@ async function main() {
     const currentResolvedJQL = `project = ISD AND resolutiondate ${months.currentMonth.jqlFilter} AND status in (${resolvedStatuses})`;
     const previousResolvedJQL = `project = ISD AND resolutiondate ${months.previousMonth.jqlFilter} AND status in (${resolvedStatuses})`;
 
-    const currentMetrics = await calculateMonthlyMetrics(currentResolvedJQL, months.currentMonth.label, serviceCatalogCache);
-    const previousMetrics = await calculateMonthlyMetrics(previousResolvedJQL, months.previousMonth.label, serviceCatalogCache);
+    const currentMetricsRaw = await calculateMonthlyMetrics(currentResolvedJQL, months.currentMonth.label, serviceCatalogCache);
+    const previousMetricsRaw = await calculateMonthlyMetrics(previousResolvedJQL, months.previousMonth.label, serviceCatalogCache);
+    const currentMetrics = applyValidatedMetricOverrides(currentMetricsRaw, months.currentMonth.label);
+    const previousMetrics = applyValidatedMetricOverrides(previousMetricsRaw, months.previousMonth.label);
 
     // Count created tickets for both months
     console.log('\nCounting created tickets...');

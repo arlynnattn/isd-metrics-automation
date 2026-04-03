@@ -39,13 +39,10 @@ jobs:
           echo "📝 Step 2/3: Updating Monthly Analyst Report..."
           node generate-monthly-analyst-report.js
 
-      - name: Update Visual Slide Deck
+      - name: Skip Visual Slide Deck Auto-Update
         if: success()
-        env:
-          ATLASSIAN_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
-          ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
         run: |
-          echo "🎨 Step 3/3: Updating Visual Slide Deck..."
+          echo "🎨 Step 3/3: Skipping Visual Slide Deck auto-update to preserve manual formatting..."
           node update-visual-slide-deck.js
 
       - name: Post to Slack
@@ -115,7 +112,7 @@ jobs:
                   \"type\": \"section\",
                   \"text\": {
                     \"type\": \"mrkdwn\",
-                    \"text\": \"*📄 Updated Pages:*\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689|📈 Monthly Metrics Dashboard>\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6422003766|📝 Monthly Analyst Report>\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6440288277|🎨 Visual Slide Deck>\"
+                    \"text\": \"*📄 Updated Pages:*\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6415089689|📈 Monthly Metrics Dashboard>\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6422003766|📝 Monthly Analyst Report>\\n• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6440288277|🎨 Visual Slide Deck (preserved for manual formatting)>\"
                   }
                 },
                 {
