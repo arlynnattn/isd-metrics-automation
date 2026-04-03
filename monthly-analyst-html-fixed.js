@@ -14,6 +14,17 @@ const {
 } = require('./shared-metrics');
 const { loadValidationResults } = require('./validate-metrics');
 
+function describeSlaPercent(percent) {
+  const value = parseFloat(percent);
+  if (isNaN(value)) {
+    return { emoji: 'ℹ️', description: 'source unavailable' };
+  }
+  if (value >= 95) {
+    return { emoji: '✅', description: 'meeting SLA expectation' };
+  }
+  return { emoji: '⚠️', description: 'below SLA expectation' };
+}
+
 function renderSlackReadoutSection(slackMetrics) {
   if (!slackMetrics || slackMetrics.available === false) {
     return '';
@@ -119,9 +130,10 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
   const currentTTFR = typeof currentMetrics.avgTTFR === 'string' ? parseFormattedTime(currentMetrics.avgTTFR) || parseFloat(currentMetrics.avgTTFR) : parseFloat(currentMetrics.avgTTFR);
   const currentTTR = typeof currentMetrics.avgTTR === 'string' ? parseFormattedTime(currentMetrics.avgTTR) || parseFloat(currentMetrics.avgTTR) : parseFloat(currentMetrics.avgTTR);
 
-  // Use shared-metrics module for target comparisons
-  const ttfrComparison = compareToTarget('ttfr', currentTTFR);
-  const ttrComparison = compareToTarget('ttr', currentTTR);
+  // SLA targets vary by issue type in Jira, so use SLA met percentages for
+  // compliance interpretation and use average TTFR/TTR as descriptive speed metrics.
+  const ttfrComparison = describeSlaPercent(currentMetrics.ttfrSlaPercent);
+  const ttrComparison = describeSlaPercent(currentMetrics.ttrSlaPercent);
   const slaComparison = compareToTarget('slaPercent', parseFloat(currentMetrics.overallSlaPercent));
   const csatComparison = compareToTarget('csat', parseFloat(currentMetrics.csat.avgScore));
   const automationComparison = compareToTarget('automationPercent', parseFloat(currentMetrics.automationPercent));
@@ -159,15 +171,15 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
   // Determine which metrics to use for narrative (adjusted if available, raw otherwise)
   const narrativeTTFR = adjustedMetricsData.hasAdjustedMetrics ? adjustedMetricsData.adjusted.avgTTFR : currentTTFR;
   const narrativeTTR = adjustedMetricsData.hasAdjustedMetrics ? adjustedMetricsData.adjusted.avgTTR : currentTTR;
-  const narrativeTTFRComparison = adjustedMetricsData.hasAdjustedMetrics ? compareToTarget('ttfr', adjustedMetricsData.adjusted.avgTTFR) : ttfrComparison;
-  const narrativeTTRComparison = adjustedMetricsData.hasAdjustedMetrics ? compareToTarget('ttr', adjustedMetricsData.adjusted.avgTTR) : ttrComparison;
+  const narrativeTTFRComparison = ttfrComparison;
+  const narrativeTTRComparison = ttrComparison;
 
   // Build adjusted metrics section if applicable
   let adjustedMetricsSection = '';
   if (adjustedMetricsData.hasAdjustedMetrics) {
     const adj = adjustedMetricsData.adjusted;
-    const adjTTFRComparison = compareToTarget('ttfr', adj.avgTTFR);
-    const adjTTRComparison = compareToTarget('ttr', adj.avgTTR);
+    const adjTTFRComparison = ttfrComparison;
+    const adjTTRComparison = ttrComparison;
 
     adjustedMetricsSection = `
 <div style="border: 2px solid #4a90e2; background-color: #f0f8ff; padding: 15px; margin: 20px 0; border-radius: 5px;">
@@ -184,12 +196,12 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
   <tr>
     <td style="padding: 8px; border: 1px solid #ddd;"><strong>Raw (System of Record)</strong></td>
     <td style="padding: 8px; border: 1px solid #ddd;">${formatTime(currentTTFR)}</td>
-    <td style="padding: 8px; border: 1px solid #ddd;">${ttfrComparison.emoji} ${ttfrComparison.description}</td>
+    <td style="padding: 8px; border: 1px solid #ddd;">${currentMetrics.ttfrSlaPercent}% within Jira SLA (${ttfrComparison.emoji} ${ttfrComparison.description})</td>
   </tr>
   <tr>
     <td style="padding: 8px; border: 1px solid #ddd;"><strong>Adjusted (Anomaly Excluded)</strong></td>
     <td style="padding: 8px; border: 1px solid #ddd;">${formatTime(adj.avgTTFR)}</td>
-    <td style="padding: 8px; border: 1px solid #ddd;">${adjTTFRComparison.emoji} ${adjTTFRComparison.description}</td>
+    <td style="padding: 8px; border: 1px solid #ddd;">Use issue-level Jira SLA met % for compliance interpretation</td>
   </tr>
 </table>
 
@@ -203,12 +215,12 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
   <tr>
     <td style="padding: 8px; border: 1px solid #ddd;"><strong>Raw (System of Record)</strong></td>
     <td style="padding: 8px; border: 1px solid #ddd;">${formatTime(currentTTR)}</td>
-    <td style="padding: 8px; border: 1px solid #ddd;">${ttrComparison.emoji} ${ttrComparison.description}</td>
+    <td style="padding: 8px; border: 1px solid #ddd;">${currentMetrics.ttrSlaPercent}% within Jira SLA (${ttrComparison.emoji} ${ttrComparison.description})</td>
   </tr>
   <tr>
     <td style="padding: 8px; border: 1px solid #ddd;"><strong>Adjusted (Anomaly Excluded)</strong></td>
     <td style="padding: 8px; border: 1px solid #ddd;">${formatTime(adj.avgTTR)}</td>
-    <td style="padding: 8px; border: 1px solid #ddd;">${adjTTRComparison.emoji} ${adjTTRComparison.description}</td>
+    <td style="padding: 8px; border: 1px solid #ddd;">Use issue-level Jira SLA met % for compliance interpretation</td>
   </tr>
 </table>
 
@@ -235,7 +247,8 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
 <p><strong>Date:</strong> ${issue.date}</p>
 <p><strong>Impact:</strong> ${issue.description}</p>
 <p><strong>Affected Metrics:</strong> ${issue.affectedMetrics.join(', ')}</p>
-<p><strong>⚠️ Recommendation:</strong> ${issue.recommendation}</p>
+<p><strong>Source of Truth:</strong> Monthly TTFR/TTR values in this report come from Jira SLA fields saved in the monthly metrics snapshot. Do not substitute statistically adjusted values.</p>
+<p><strong>⚠️ Recommendation:</strong> ${issue.recommendation} If a Jira Service Management report export is used for leadership review, reconcile that export separately before changing this report.</p>
 `;
     }
     dataQualitySection += `</div>
@@ -273,6 +286,7 @@ ${confidenceNote}
 <ul>
   <li><strong>Volume:</strong> IT resolved ${currentMetrics.resolvedCount} tickets this month (${volumeChangePercent > 0 ? '+' : ''}${volumeChangePercent}% MoM), ${currentMetrics.createdCount} created</li>
   <li><strong>SLA Performance:</strong> ${currentMetrics.overallSlaPercent}% SLA achievement (${slaChange > 0 ? '+' : ''}${slaChange.toFixed(1)}pp MoM) - ${slaComparison.emoji} ${slaComparison.description}</li>
+  <li><strong>TTFR / TTR SLA Met:</strong> ${currentMetrics.ttfrSlaPercent}% TTFR within Jira SLA, ${currentMetrics.ttrSlaPercent}% TTR within Jira SLA</li>
   <li><strong>Customer Satisfaction:</strong> CSAT ${currentMetrics.csat.avgScore}/5.0 from ${currentMetrics.csat.totalResponses} reviews - ${csatComparison.emoji} ${csatComparison.description}</li>
   <li><strong>Automation Impact:</strong> ${currentMetrics.automationPercent}% automation rate - ${automationComparison.emoji} ${automationComparison.description}</li>
   <li><strong>Workforce Growth:</strong> ${currentMetrics.workforce?.totalOnboarding || 0} total onboarded (${currentMetrics.workforce?.fteOnboarding || 0} FTE, ${currentMetrics.workforce?.contractorOnboarding || 0} contractors), ${currentMetrics.workforce?.offboarding || 0} offboarded - Net: ${currentMetrics.workforce?.netChange > 0 ? '+' : ''}${currentMetrics.workforce?.netChange || 0}</li>
@@ -294,8 +308,8 @@ ${narrativeConfidence.level !== 'confident' ? '<p><em>Note: Insights below use a
 <h3>Service Level Performance</h3>
 ${adjustedMetricsData.hasAdjustedMetrics ? '<p><em>Using adjusted metrics for accurate interpretation</em></p>' : ''}
 <ul>
-  <li><strong>TTFR:</strong> ${formatTime(narrativeTTFR)} average${adjustedMetricsData.hasAdjustedMetrics ? ' (adjusted)' : ''} - ${narrativeTTFRComparison.emoji} ${narrativeTTFRComparison.description}</li>
-  <li><strong>TTR:</strong> ${formatTime(narrativeTTR)} average${adjustedMetricsData.hasAdjustedMetrics ? ' (adjusted)' : ''} - ${narrativeTTRComparison.emoji} ${narrativeTTRComparison.description}</li>
+  <li><strong>TTFR:</strong> ${formatTime(narrativeTTFR)} average - ${currentMetrics.ttfrSlaPercent}% within Jira SLA (${narrativeTTFRComparison.emoji} ${narrativeTTFRComparison.description})</li>
+  <li><strong>TTR:</strong> ${formatTime(narrativeTTR)} average - ${currentMetrics.ttrSlaPercent}% within Jira SLA (${narrativeTTRComparison.emoji} ${narrativeTTRComparison.description})</li>
   <li><strong>SLA Breaches:</strong> ${currentMetrics.slaBreachCount} tickets (${currentMetrics.slaBreachPercent}% breach rate) - ${parseFloat(currentMetrics.slaBreachPercent) > 10 ? '⚠️ High breach rate' : 'acceptable range'}</li>
 </ul>
 
@@ -346,8 +360,8 @@ ${narrativeConfidence.level !== 'confident' ? '<p><em>Note: Root cause analysis 
 
 <p><strong>Within IT Control (~30%):</strong></p>
 <ul>
-  <li><strong>First Response Delays:</strong> ${narrativeTTFRComparison.status === 'above' ? `${adjustedMetricsData.hasAdjustedMetrics ? 'Adjusted ' : ''}TTFR exceeds 2h - review round robin effectiveness and coverage hours` : `${adjustedMetricsData.hasAdjustedMetrics ? 'Adjusted ' : ''}TTFR within SLA - not primary driver`}</li>
-  <li><strong>Workflow Efficiency:</strong> Human-handled tickets take ${formatTime(narrativeTTR)}${adjustedMetricsData.hasAdjustedMetrics ? ' (adjusted)' : ''} vs automated - manual process optimization opportunity</li>
+  <li><strong>First Response Delays:</strong> ${parseFloat(currentMetrics.ttfrSlaPercent) < 95 ? `TTFR SLA met rate is ${currentMetrics.ttfrSlaPercent}% - review round robin effectiveness and coverage hours` : `TTFR SLA met rate is ${currentMetrics.ttfrSlaPercent}% - first response is not the primary driver`}</li>
+  <li><strong>Workflow Efficiency:</strong> Human-handled tickets take ${formatTime(narrativeTTR)} on average, with ${currentMetrics.ttrSlaPercent}% within Jira SLA - manual process optimization opportunity remains in slower paths</li>
   <li><strong>Prioritization:</strong> Review if high-priority tickets getting appropriate attention vs low-priority volume</li>
 </ul>
 

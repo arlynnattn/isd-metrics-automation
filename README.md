@@ -275,6 +275,12 @@ The scripts use Jira's **built-in SLA fields** which automatically calculate bus
 
 **Business Hours**: 9:00 AM - 6:00 PM Eastern Time, Monday-Friday
 
+Important:
+- Monthly automation currently sources TTFR/TTR from the Jira SLA fields above, not from the Jira Service Management custom report export UI.
+- Do not publish statistically "adjusted" TTFR/TTR values unless they come from a separately validated ticket-level method or trusted report source.
+- If leadership review depends on matching a specific JSM report export, validate that export against the monthly snapshot before updating Confluence or slides.
+- SLA goals are **not universal** across issue types. TTFR and TTR averages should be treated as descriptive speed metrics, while SLA compliance should be read from Jira's issue-level breached/not-breached outcomes and SLA met percentages.
+
 ### Service Catalog Resolution
 SaaS application names are fetched from Jira Assets API:
 ```javascript

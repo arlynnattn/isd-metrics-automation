@@ -426,29 +426,19 @@ function calculateAdjustedMetrics(rawMetrics, anomalies) {
     };
   }
 
-  // For March 2026 clock cleanup: approximate clean metrics
-  // Assumption: The anomaly inflated metrics by ~10x (based on 221 old tickets with years of tracked time)
-  // This is a conservative estimate - real adjustment would filter specific tickets
+  // For March 2026 clock cleanup, do not synthesize "adjusted" TTFR/TTR values.
+  // The prior implementation used hard-coded multipliers, which can diverge from
+  // Jira Service Management report exports and create misleading executive narratives.
+  // If adjusted metrics are needed in the future, they must come from a validated,
+  // ticket-level exclusion workflow or a directly trusted report source.
   if (adjustableAnomaly.id === 'march-2026-clock-cleanup') {
-    // Estimate: March metrics were inflated by old tickets with cumulative ~20,000 hours
-    // Approximate clean metrics by assuming 90% of extreme values were anomaly-driven
-
-    const adjustedTTFR = rawMetrics.avgTTFR ? rawMetrics.avgTTFR * 0.15 : null; // Reduce by 85%
-    const adjustedTTR = rawMetrics.avgTTR ? rawMetrics.avgTTR * 0.12 : null; // Reduce by 88%
-
     return {
-      hasAdjustedMetrics: true,
-      adjusted: {
-        avgTTFR: adjustedTTFR,
-        avgTTR: adjustedTTR,
-        // SLA would improve if time metrics improve, but hard to calculate exactly
-        overallSlaPercent: rawMetrics.overallSlaPercent // Keep raw for now
-      },
-      method: 'statistical_approximation',
-      assumption: 'Estimated exclusion of 221 anomaly tickets with extreme time values',
-      confidence: 'moderate',
-      note: adjustableAnomaly.adjustmentNote,
-      disclaimer: 'Adjusted metrics are approximations. Exact filtering requires ticket-level anomaly tagging.'
+      hasAdjustedMetrics: false,
+      adjusted: null,
+      method: 'manual_validation_required',
+      confidence: 'high',
+      note: 'Known anomaly detected, but synthetic adjusted metrics are disabled. Use Jira SLA fields as raw system-of-record values unless a separately validated report source is provided.',
+      disclaimer: 'Do not publish statistically approximated TTFR/TTR values.'
     };
   }
 

@@ -77,6 +77,15 @@ Or trigger via GitHub Actions:
   - Contractor offboarding (CLONE - Contractor Offboarding)
 - **SaaS App Tracking**: New apps and access requests
 
+## 📏 TTFR / TTR Source Of Truth
+
+- Monthly automation currently calculates TTFR and TTR from Jira SLA custom fields on the resolved-ticket query:
+  - `customfield_10130` for TTFR
+  - `customfield_10129` for TTR
+- This is not the same thing as the Jira Service Management custom report export UI.
+- Synthetic "adjusted" time metrics should not be published. If a month needs anomaly handling, reconcile against a validated report or ticket-level exclusion method first.
+- Jira SLA goals vary by issue type. Do not apply a single universal `2h` or `16h` target to TTFR/TTR averages in leadership reporting. Use TTFR/TTR SLA met percentages for compliance.
+
 ## 🔍 Workforce Counting Rules
 
 ### Primary Sources (CLONE Tickets)
@@ -105,6 +114,10 @@ Or trigger via GitHub Actions:
 2. Check JQL queries match the rules above
 3. Verify reporter field is used (not creator)
 4. Confirm resolution date filter (not created date)
+5. For TTFR/TTR questions, confirm whether you are comparing:
+   - the monthly automation snapshot based on Jira SLA fields, or
+   - a Jira Service Management report export
+6. Do not use hard-coded "adjusted" TTFR/TTR values for deck or analyst copy
 
 ### Discrepancy Warnings
 - If CLONE tickets and calendar events differ by >10%, investigate:

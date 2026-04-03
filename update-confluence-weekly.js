@@ -18,9 +18,10 @@ const CONFLUENCE_SPACE_KEY = 'ISD';
 const ASSETS_WORKSPACE_ID = '0e0847de-b6ef-45db-b74f-45e404e34d0c';
 const SLACK_CHANNEL_ID = 'CTHCKD6J2'; // #ask-it
 
-// SLA Targets
-const TTFR_SLA_HOURS = 2;
-const TTR_SLA_HOURS = 16;
+// Display note:
+// Jira SLA goals vary by issue type. Do not present TTFR/TTR averages as if they
+// all share a single universal target. Use breached/not-breached cycle state for
+// SLA performance and label averages as descriptive speed metrics.
 
 // Custom field IDs
 const FIELD_SERVICE_CATALOG = 'customfield_14446';
@@ -880,13 +881,13 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
       <th><p><strong>Change</strong></p></th>
     </tr>
     <tr>
-      <td><p>Time to First Response (SLA: 2 hrs)</p></td>
+      <td><p>Time to First Response</p></td>
       <td><p>${formatTime(currentMetrics.avgTTFR)}</p></td>
       <td><p>${formatTime(previousMetrics.avgTTFR)}</p></td>
       <td><p>${ttfrChange}</p></td>
     </tr>
     <tr>
-      <td><p>Time to Resolution (SLA: 16 hrs)</p></td>
+      <td><p>Time to Resolution</p></td>
       <td><p>${formatTime(currentMetrics.avgTTR)}</p></td>
       <td><p>${formatTime(previousMetrics.avgTTR)}</p></td>
       <td><p>${ttrChange}</p></td>

@@ -19,9 +19,10 @@ const CONFLUENCE_PAGE_ID = '6415089689'; // ISD Monthly Metrics page
 const CONFLUENCE_SPACE_KEY = 'ISD';
 const ASSETS_WORKSPACE_ID = '0e0847de-b6ef-45db-b74f-45e404e34d0c';
 
-// SLA Targets
-const TTFR_SLA_HOURS = 2;
-const TTR_SLA_HOURS = 16;
+// Display note:
+// Jira SLA goals vary by issue type. Do not present TTFR/TTR averages as if they
+// all share a single universal target. Use breached/not-breached cycle state for
+// SLA performance and label averages as descriptive speed metrics.
 
 // Custom field IDs
 const FIELD_SERVICE_CATALOG = 'customfield_14446';
@@ -518,9 +519,13 @@ async function calculateMonthlyMetrics(jql, monthLabel, serviceCatalogCache) {
   let ttfrSum = 0;
   let ttfrCount = 0;
   let ttfrSlaMetCount = 0;
+  let ttfrGoalSum = 0;
+  let ttfrGoalCount = 0;
   let ttrSum = 0;
   let ttrCount = 0;
   let ttrSlaMetCount = 0;
+  let ttrGoalSum = 0;
+  let ttrGoalCount = 0;
   let resolvedCount = 0;
 
   // Automation tracking
@@ -596,6 +601,10 @@ async function calculateMonthlyMetrics(jql, monthLabel, serviceCatalogCache) {
 
       ttfrSum += ttfrHours;
       ttfrCount++;
+      if (cycle.goalDuration && typeof cycle.goalDuration.millis === 'number') {
+        ttfrGoalSum += cycle.goalDuration.millis / (1000 * 60 * 60);
+        ttfrGoalCount++;
+      }
 
       // Check if SLA was met (based on Jira's business-hours calculation)
       if (!cycle.breached) {
@@ -638,6 +647,10 @@ async function calculateMonthlyMetrics(jql, monthLabel, serviceCatalogCache) {
 
       ttrSum += ttrHours;
       ttrCount++;
+      if (cycle.goalDuration && typeof cycle.goalDuration.millis === 'number') {
+        ttrGoalSum += cycle.goalDuration.millis / (1000 * 60 * 60);
+        ttrGoalCount++;
+      }
 
       // Check if SLA was met (based on Jira's business-hours calculation)
       if (!cycle.breached) {
@@ -668,6 +681,8 @@ async function calculateMonthlyMetrics(jql, monthLabel, serviceCatalogCache) {
   const avgTTR = ttrCount > 0 ? (ttrSum / ttrCount).toFixed(2) : 'N/A';
   const ttfrSlaPercent = ttfrCount > 0 ? ((ttfrSlaMetCount / ttfrCount) * 100).toFixed(1) : 'N/A';
   const ttrSlaPercent = ttrCount > 0 ? ((ttrSlaMetCount / ttrCount) * 100).toFixed(1) : 'N/A';
+  const avgTTFRGoalHours = ttfrGoalCount > 0 ? (ttfrGoalSum / ttfrGoalCount).toFixed(2) : 'N/A';
+  const avgTTRGoalHours = ttrGoalCount > 0 ? (ttrGoalSum / ttrGoalCount).toFixed(2) : 'N/A';
 
   // Calculate overall SLA met %
   let overallSlaPercent = 'N/A';
@@ -709,6 +724,8 @@ async function calculateMonthlyMetrics(jql, monthLabel, serviceCatalogCache) {
     resolvedCount,
     avgTTFR,
     avgTTR,
+    avgTTFRGoalHours,
+    avgTTRGoalHours,
     ttfrCount,
     ttrCount,
     overallSlaPercent,
@@ -879,13 +896,13 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
       <th><p><strong>Change</strong></p></th>
     </tr>
     <tr>
-      <td><p>Time to First Response (SLA: 2 hrs)</p></td>
+      <td><p>Time to First Response</p></td>
       <td><p>${formatTime(displayCurrentTTFR)}</p></td>
       <td><p>${formatTime(previousMetrics.avgTTFR)}</p></td>
       <td><p>${ttfrChange}</p></td>
     </tr>
     <tr>
-      <td><p>Time to Resolution (SLA: 16 hrs)</p></td>
+      <td><p>Time to Resolution</p></td>
       <td><p>${formatTime(displayCurrentTTR)}</p></td>
       <td><p>${formatTime(previousMetrics.avgTTR)}</p></td>
       <td><p>${ttrChange}</p></td>
@@ -904,6 +921,7 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
     </tr>
   </tbody>
 </table>
+<p><em>Source note: TTFR and TTR in this dashboard are calculated from Jira SLA fields (${FIELD_TTFR} and ${FIELD_TTR}) on the resolved-ticket monthly query. Jira SLA goals vary by issue type, so SLA compliance should be read from TTFR/TTR SLA met percentages rather than a single fixed hour target applied to the averages.</em></p>
 
 <h3>C. Efficiency & Scale</h3>
 <table data-layout="default">
@@ -1404,6 +1422,8 @@ async function main() {
     console.log(`  Total Issues: ${currentMetrics.totalIssues}`);
     console.log(`  Avg TTFR: ${formatTime(currentMetrics.avgTTFR)}`);
     console.log(`  Avg TTR: ${formatTime(currentMetrics.avgTTR)}`);
+    console.log(`  TTFR SLA met: ${currentMetrics.ttfrSlaPercent}% (avg goal ${currentMetrics.avgTTFRGoalHours}h)`);
+    console.log(`  TTR SLA met: ${currentMetrics.ttrSlaPercent}% (avg goal ${currentMetrics.avgTTRGoalHours}h)`);
     console.log(`  SLA met: ${currentMetrics.overallSlaPercent}%`);
     console.log(`  Access Requests: ${currentMetrics.accessRequestCount}`);
     console.log(`  Top Department: ${currentMetrics.departmentBreakdown[0]?.[0]} (${currentMetrics.departmentBreakdown[0]?.[1]} tickets)`);

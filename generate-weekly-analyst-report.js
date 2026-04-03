@@ -19,6 +19,17 @@ const {
 } = require('./shared-metrics');
 const { loadValidationResults } = require('./validate-metrics');
 
+function describeSlaPercent(percent) {
+  const value = parseFloat(percent);
+  if (isNaN(value)) {
+    return { emoji: 'ℹ️', description: 'source unavailable' };
+  }
+  if (value >= 95) {
+    return { emoji: '✅', description: 'meeting SLA expectation' };
+  }
+  return { emoji: '⚠️', description: 'below SLA expectation' };
+}
+
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
 const CONFLUENCE_PAGE_ID = '6424363046'; // Weekly Analyst Report page
@@ -80,8 +91,8 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
   const currentTTR = typeof currentMetrics.avgTTR === 'string' ? parseFormattedTime(currentMetrics.avgTTR) || parseFloat(currentMetrics.avgTTR) : parseFloat(currentMetrics.avgTTR);
 
   // Use shared-metrics module for target comparisons
-  const ttfrComparison = compareToTarget('ttfr', currentTTFR);
-  const ttrComparison = compareToTarget('ttr', currentTTR);
+  const ttfrComparison = describeSlaPercent(currentMetrics.ttfrSlaPercent);
+  const ttrComparison = describeSlaPercent(currentMetrics.ttrSlaPercent);
   const slaComparison = compareToTarget('slaPercent', parseFloat(currentMetrics.overallSlaPercent));
   const csatComparison = compareToTarget('csat', parseFloat(currentMetrics.csat.avgScore));
   const automationComparison = compareToTarget('automationPercent', parseFloat(currentMetrics.automationPercent));
@@ -120,8 +131,8 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
   let adjustedMetricsSection = '';
   if (adjustedMetricsData.hasAdjustedMetrics) {
     const adj = adjustedMetricsData.adjusted;
-    const adjTTFRComparison = compareToTarget('ttfr', adj.avgTTFR);
-    const adjTTRComparison = compareToTarget('ttr', adj.avgTTR);
+    const adjTTFRComparison = ttfrComparison;
+    const adjTTRComparison = ttrComparison;
 
     adjustedMetricsSection = `
 <div style="border: 2px solid #4a90e2; background-color: #f0f8ff; padding: 15px; margin: 20px 0; border-radius: 5px;">
@@ -201,8 +212,8 @@ function generateAnalystReportHTML(currentMetrics, previousMetrics) {
   // Determine which metrics to use for narrative (adjusted if available, raw otherwise)
   const narrativeTTFR = adjustedMetricsData.hasAdjustedMetrics ? adjustedMetricsData.adjusted.avgTTFR : currentTTFR;
   const narrativeTTR = adjustedMetricsData.hasAdjustedMetrics ? adjustedMetricsData.adjusted.avgTTR : currentTTR;
-  const narrativeTTFRComparison = adjustedMetricsData.hasAdjustedMetrics ? compareToTarget('ttfr', adjustedMetricsData.adjusted.avgTTFR) : ttfrComparison;
-  const narrativeTTRComparison = adjustedMetricsData.hasAdjustedMetrics ? compareToTarget('ttr', adjustedMetricsData.adjusted.avgTTR) : ttrComparison;
+  const narrativeTTFRComparison = ttfrComparison;
+  const narrativeTTRComparison = ttrComparison;
 
   // Narrative prefix based on confidence level
   const confidenceNote = narrativeConfidence.level === 'limited'
@@ -251,8 +262,8 @@ ${adjustedMetricsData.hasAdjustedMetrics ? '<p><strong>📊 Metrics Interpretati
 <h3>Performance Trends</h3>
 ${adjustedMetricsData.hasAdjustedMetrics ? '<p><em>Note: Time metrics use adjusted values (anomaly-excluded) for accurate interpretation</em></p>' : ''}
 <ul>
-  <li><strong>TTFR:</strong> ${formatTime(narrativeTTFR)} avg (target: 2h) - ${narrativeTTFRComparison.emoji} ${narrativeTTFRComparison.description}${adjustedMetricsData.hasAdjustedMetrics ? ' (adjusted)' : ''}</li>
-  <li><strong>TTR:</strong> ${formatTime(narrativeTTR)} avg (target: 16h) - ${narrativeTTRComparison.emoji} ${narrativeTTRComparison.description}${adjustedMetricsData.hasAdjustedMetrics ? ' (adjusted)' : ''}</li>
+  <li><strong>TTFR:</strong> ${formatTime(narrativeTTFR)} avg - ${currentMetrics.ttfrSlaPercent}% within Jira SLA (${narrativeTTFRComparison.emoji} ${narrativeTTFRComparison.description})${adjustedMetricsData.hasAdjustedMetrics ? ' (adjusted narrative disabled for compliance)' : ''}</li>
+  <li><strong>TTR:</strong> ${formatTime(narrativeTTR)} avg - ${currentMetrics.ttrSlaPercent}% within Jira SLA (${narrativeTTRComparison.emoji} ${narrativeTTRComparison.description})${adjustedMetricsData.hasAdjustedMetrics ? ' (adjusted narrative disabled for compliance)' : ''}</li>
   <li><strong>SLA Breaches:</strong> ${currentMetrics.slaBreachCount} tickets (${currentMetrics.slaBreachPercent}% breach rate)</li>
 </ul>
 
