@@ -135,6 +135,7 @@ Or trigger via [GitHub Actions](https://github.com/arlynnattn/isd-metrics-automa
 - **Slack support channels** - Messages and unique users across #ask-it and #team-it-support
 - **Slack readout signals** - leadership-ready Trends, Notables, and Why sections
 - **CSAT** - Average score and review count
+- **CSAT Highlights** - Up to 3 positive, slide-ready comments from distinct IT support team members when available
 
 ### Additional Sections
 - Department breakdown (top 5 departments)

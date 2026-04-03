@@ -120,7 +120,7 @@ async function fetchCSAT(startDate, endDate, monthLabel) {
     // Query for tickets with satisfaction ratings in the date range
     const jql = `project = ISD AND "${FIELD_SATISFACTION_DATE}" >= "${startStr}" AND "${FIELD_SATISFACTION_DATE}" <= "${endStr}"`;
 
-    const path = `/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=1000&fields=${FIELD_SATISFACTION},${FIELD_SATISFACTION_DATE}`;
+    const path = `/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=1000&fields=summary,assignee,${FIELD_SATISFACTION},${FIELD_SATISFACTION_DATE}`;
     const response = await makeRequest(JIRA_BASE_URL, path, 'GET', null, {
       'Authorization': JIRA_AUTH_HEADER
     });
@@ -132,7 +132,8 @@ async function fetchCSAT(startDate, endDate, monthLabel) {
       return {
         avgScore: 'N/A',
         totalResponses: 0,
-        scores: {}
+        scores: {},
+        highlights: []
       };
     }
 
@@ -158,7 +159,8 @@ async function fetchCSAT(startDate, endDate, monthLabel) {
     return {
       avgScore,
       totalResponses: validRatings,
-      scores: scoreBreakdown
+      scores: scoreBreakdown,
+      highlights: buildCSATHighlights(issues)
     };
 
   } catch (error) {
@@ -166,9 +168,89 @@ async function fetchCSAT(startDate, endDate, monthLabel) {
     return {
       avgScore: 'Error',
       totalResponses: 0,
-      scores: {}
+      scores: {},
+      highlights: []
     };
   }
+}
+
+function normalizeCSATComment(rawComment) {
+  if (!rawComment) return '';
+  if (typeof rawComment === 'string') return rawComment.trim();
+  if (typeof rawComment === 'object') {
+    if (typeof rawComment.body === 'string') return rawComment.body.trim();
+    if (typeof rawComment.comment === 'string') return rawComment.comment.trim();
+  }
+  return '';
+}
+
+function createExcerpt(comment, maxLength = 58) {
+  const normalized = comment.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  const trimmed = normalized.slice(0, maxLength - 1);
+  const safeTrimmed = trimmed.includes(' ') ? trimmed.slice(0, trimmed.lastIndexOf(' ')) : trimmed;
+  return `${safeTrimmed.trim()}...`;
+}
+
+function scoreHighlightCandidate(comment) {
+  const normalized = comment.trim();
+  if (!normalized || /^n\/a$/i.test(normalized)) return -1;
+
+  let score = Math.min(normalized.length, 120);
+
+  if (/thank you|thanks|helpful|quick|fast|great|proactive|kindness|effective/i.test(normalized)) {
+    score += 20;
+  }
+
+  if (/^[A-Za-z .!+-]+$/.test(normalized)) {
+    score += 5;
+  }
+
+  return score;
+}
+
+function buildCSATHighlights(issues, limit = 3) {
+  const byAgent = new Map();
+
+  for (const issue of issues) {
+    const satisfaction = issue.fields[FIELD_SATISFACTION];
+    const rating = parseInt(satisfaction?.rating, 10);
+    const comment = normalizeCSATComment(satisfaction?.comment);
+    const agent = issue.fields.assignee?.displayName || 'Unassigned';
+
+    if (rating !== 5 || !comment || /^n\/a$/i.test(comment)) {
+      continue;
+    }
+
+    const candidate = {
+      issueKey: issue.key,
+      agent,
+      summary: issue.fields.summary || '',
+      rating,
+      comment,
+      excerpt: createExcerpt(comment),
+      feedbackDate: issue.fields[FIELD_SATISFACTION_DATE] || null,
+      score: scoreHighlightCandidate(comment)
+    };
+
+    if (candidate.score < 0) continue;
+
+    const currentBest = byAgent.get(agent);
+    if (!currentBest || candidate.score > currentBest.score) {
+      byAgent.set(agent, candidate);
+    }
+  }
+
+  return Array.from(byAgent.values())
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return (b.feedbackDate || '').localeCompare(a.feedbackDate || '');
+    })
+    .slice(0, limit)
+    .map(({ score, ...highlight }) => highlight);
 }
 
 /**
