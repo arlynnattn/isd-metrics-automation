@@ -39,6 +39,15 @@ This folder contains documentation for the ISD metrics automation system.
   - Methodology and validation approach
   - Discrepancy analysis
 
+### Analysis & Insights
+
+- **[March_2026_App_Access_Delay_Analysis.md](./March_2026_App_Access_Delay_Analysis.md)**
+  - Deep dive into app access request delays for March 2026
+  - Root cause analysis for Gong, GitHub, Salesforce, and Zendesk tickets
+  - Approval bottlenecks and customer validation delays
+  - Actionable recommendations to reduce TTR
+  - Based on analysis of 58 March app access tickets
+
 ## 🚀 Quick Start
 
 ### Running the Monthly Automation
