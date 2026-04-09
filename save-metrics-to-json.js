@@ -109,9 +109,60 @@ function loadMonthlyMetrics() {
   return data;
 }
 
+/**
+ * Save quarterly metrics to JSON file
+ */
+function saveQuarterlyMetrics(currentMetrics, previousMetrics, quarterRanges) {
+  const data = {
+    timestamp: new Date().toISOString(),
+    currentQuarter: {
+      ...currentMetrics,
+      period: quarterRanges.currentQuarter.label,
+      start: quarterRanges.currentQuarter.start,
+      end: quarterRanges.currentQuarter.end
+    },
+    previousQuarter: {
+      ...previousMetrics,
+      period: quarterRanges.previousQuarter.label,
+      start: quarterRanges.previousQuarter.start,
+      end: quarterRanges.previousQuarter.end
+    }
+  };
+
+  const filePath = path.join(__dirname, 'metrics-cache-quarterly.json');
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  console.log(`✓ Quarterly metrics saved to ${filePath}`);
+  return filePath;
+}
+
+/**
+ * Load quarterly metrics from JSON file
+ */
+function loadQuarterlyMetrics() {
+  const filePath = path.join(__dirname, 'metrics-cache-quarterly.json');
+
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Quarterly metrics cache not found. Run ./run-quarterly.sh first to generate metrics.`);
+  }
+
+  const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+
+  // Check if data is stale (older than 90 days)
+  const age = Date.now() - new Date(data.timestamp).getTime();
+  const daysOld = age / (1000 * 60 * 60 * 24);
+
+  if (daysOld > 90) {
+    console.warn(`⚠️  Warning: Quarterly metrics cache is ${daysOld.toFixed(1)} days old. Consider running ./run-quarterly.sh to refresh.`);
+  }
+
+  return data;
+}
+
 module.exports = {
   saveWeeklyMetrics,
   saveMonthlyMetrics,
   loadWeeklyMetrics,
-  loadMonthlyMetrics
+  loadMonthlyMetrics,
+  saveQuarterlyMetrics,
+  loadQuarterlyMetrics
 };
