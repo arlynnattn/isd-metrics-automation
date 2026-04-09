@@ -27,6 +27,17 @@ GitHub Actions automatically:
 3. Updates **Visual Slide Deck** (presentation-ready slides)
 4. Posts notification to **#itops-metric-reporting** Slack channel
 
+### Quarterly Reports (Manual Run for MBR/QBR)
+Quarterly reports provide strategic insights for Management Business Reviews (MBR) and Quarterly Business Reviews (QBR):
+1. **Quarterly Metrics Dashboard** - Q1 2026 (Jan-Mar) vs Q4 2025 (Oct-Dec) comparison
+2. **Quarterly Analyst Report** - Strategic analysis and recommendations for leadership
+
+Run manually before quarterly reviews:
+```bash
+cd ~/isd-metrics-automation
+./run-quarterly.sh
+```
+
 **Manual trigger**: Available via [GitHub Actions](https://github.com/arlynnattn/isd-metrics-automation/actions)
 
 **Slack Notifications**: All updates send rich, formatted notifications using Slack Block Kit with emojis, clickable links, and organized sections.
@@ -47,8 +58,10 @@ GitHub Actions automatically:
 **Report Types:**
 - **Weekly Data Report**: Last 7 days metrics - saves to Desktop (manual Confluence paste required)
 - **Monthly Data Report**: Current month metrics - saves to Desktop (manual Confluence paste required)
+- **Quarterly Data Report**: Q1 2026 (Jan-Mar) metrics - saves to Desktop for MBR/QBR
 - **Weekly Analyst Report**: Executive analysis - automatically updates Confluence
 - **Monthly Analyst Report**: Strategic insights - automatically updates Confluence
+- **Quarterly Analyst Report**: Strategic quarterly review - saves to Desktop for MBR/QBR
 - **Automation Overview**: Week-over-week automation metrics - automatically updates Confluence
 
 ## ✅ Current Automation State
@@ -90,7 +103,13 @@ cd ~/isd-metrics-automation
 ./run-monthly-analyst.sh   # Strategic insights from monthly metrics
 ```
 
-Weekly and Monthly data reports are saved to your **Desktop** as HTML files. The Automation Metrics and Analyst Reports update Confluence pages directly.
+### Run Quarterly Report (for MBR/QBR)
+```bash
+cd ~/isd-metrics-automation
+./run-quarterly.sh         # Q1 2026 (Jan-Mar) strategic review
+```
+
+Weekly, Monthly, and Quarterly data reports are saved to your **Desktop** as HTML files. The Automation Metrics and Analyst Reports update Confluence pages directly.
 
 ## 📋 Automated Confluence Updates
 
@@ -182,6 +201,15 @@ project = ISD AND resolutiondate >= "2026-03-01" AND status in ("13. Done", Canc
 project = ISD AND created >= "2026-03-01"
 ```
 
+**Quarterly (Q1 2026: Jan-Mar):**
+```jql
+# Resolved tickets
+project = ISD AND resolutiondate >= "2026-01-01" AND resolutiondate <= "2026-03-31" AND status in ("13. Done", Canceled, Closed, Completed, Declined, Resolved)
+
+# Created tickets
+project = ISD AND created >= "2026-01-01" AND created <= "2026-03-31"
+```
+
 ## 📁 Files
 
 ### Weekly Automation Scripts
@@ -193,6 +221,10 @@ project = ISD AND created >= "2026-03-01"
 - `generate-monthly-analyst-report.js` - Strategic insights from monthly metrics
 - `update-visual-slide-deck.js` - Updates presentation-ready slide deck
 
+### Quarterly Reporting Scripts
+- `update-confluence-quarterly-enhanced.js` - Quarterly metrics data collection (Q1 2026 vs Q4 2025)
+- `generate-quarterly-analyst-report.js` - Strategic quarterly analysis for MBR/QBR
+
 ### Other Scripts
 - `update-confluence-metrics.js` - Automation metrics overview (week-over-week, manual run)
 
@@ -203,6 +235,7 @@ project = ISD AND created >= "2026-03-01"
 ### Helper Scripts
 - `run-weekly.sh` - Run weekly metrics report
 - `run-monthly.sh` - Run monthly metrics report
+- `run-quarterly.sh` - Run quarterly metrics report (Q1 2026 for MBR/QBR)
 - `run-automation-metrics.sh` - Run automation metrics overview
 - `run-weekly-analyst.sh` - Run weekly analyst report
 - `run-monthly-analyst.sh` - Run monthly analyst report

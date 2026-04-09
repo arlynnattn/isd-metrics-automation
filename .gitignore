@@ -7,3 +7,11 @@ node_modules/
 metrics-cache-weekly.json
 metrics-cache-monthly.json
 validation-results.json
+.env.local
+
+# Quarterly cache files
+metrics-cache-quarterly.json
+
+# Backup files
+*.backup
+*.bak
