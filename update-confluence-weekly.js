@@ -470,9 +470,14 @@ async function countWorkforceChanges(jqlFilter, label, isRange = false) {
  */
 function isFullyAutomated(issue, automationAccounts) {
   const assignee = issue.fields.assignee?.displayName;
+  const reporter = issue.fields.reporter?.displayName;
 
-  // Must be assigned to one of the automation accounts
-  if (!automationAccounts.includes(assignee)) {
+  // Count as automated if assignee is automation account
+  // OR if reporter is automation (automation-initiated tickets)
+  const isAutomationAssigned = automationAccounts.includes(assignee);
+  const isAutomationReported = automationAccounts.includes(reporter);
+
+  if (!isAutomationAssigned && !isAutomationReported) {
     return false;
   }
 
@@ -483,13 +488,27 @@ function isFullyAutomated(issue, automationAccounts) {
     return true;
   }
 
+  // Critical fields that indicate human work (not just comments/minor updates)
+  // Only check assignee - if ticket is reassigned from automation to human, it's not automated
+  // Allow humans to close/resolve automation-initiated tickets (that's expected workflow)
+  const criticalFields = ['assignee'];
+
   // Check each history entry for human actors
   for (const history of changelog.histories) {
     const actor = history.author?.displayName;
 
-    // If a human (not in automation accounts list) made any change, it's not fully automated
+    // If human made changes, check if they touched critical fields
     if (actor && !automationAccounts.includes(actor)) {
-      return false;
+      // Check if this history entry modified critical fields
+      const items = history.items || [];
+      const touchedCriticalField = items.some(item =>
+        criticalFields.includes(item.field?.toLowerCase())
+      );
+
+      if (touchedCriticalField) {
+        return false; // Human changed assignee/status/resolution = not automated
+      }
+      // Otherwise ignore (human just commented, added labels, etc.)
     }
   }
 
@@ -504,7 +523,7 @@ async function calculateMonthlyMetrics(jql, monthLabel, serviceCatalogCache) {
 
   // Fetch issues with all needed fields (including changelog for automation detection)
   const fields = [
-    'created', 'resolutiondate', 'comment', 'assignee', 'labels',
+    'created', 'resolutiondate', 'comment', 'assignee', 'reporter', 'labels',
     'issuetype', 'status', 'updated', 'summary',
     FIELD_SERVICE_CATALOG, FIELD_EMPLOYEE_DEPT, FIELD_REQUEST_TYPE,
     FIELD_TTFR, FIELD_TTR
@@ -535,7 +554,10 @@ async function calculateMonthlyMetrics(jql, monthLabel, serviceCatalogCache) {
 
   const AUTOMATION_ACCOUNTS = [
     'Attentive Jira OKTA Workflow Automation Account',
-    'Automation for Jira'
+    'Automation for Jira',
+    'Okta Jira-Service',
+    'jira-greenhouse',
+    'jira-sapling'
   ];
   const now = new Date();
 
@@ -840,7 +862,7 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
 
 <h2>Summary</h2>
 <ul>
-  <li><strong>Operational Resilience:</strong> Team maintained ${currentMetrics.overallSlaPercent}% SLA performance despite operating at reduced capacity—automation provided continuity when engineers were unavailable, demonstrating system reliability under staffing constraints</li>
+  <li><strong>Operational Excellence:</strong> Team maintained ${currentMetrics.overallSlaPercent}% SLA performance with full engineering capacity—automation continues to provide scalability and service continuity, demonstrating system reliability</li>
   <li><strong>Scalable Operations:</strong> IT Ops delivered ${currentMetrics.resolvedCount} ticket resolutions with ${currentMetrics.automationPercent}% automation rate—demonstrating ability to scale service delivery without proportional headcount growth</li>
   <li><strong>Next Optimization Target:</strong> Approval-dependent workflows (Snowflake, GitHub, Gong access) represent primary opportunity for further efficiency gains through governance process streamlining</li>
 </ul>
@@ -938,8 +960,7 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
 </table>
 
 <h2>Team Capacity & Availability</h2>
-<p><strong>Active Round Robin Engineers:</strong> Artie Byers, Carlos Ramirez (2 of 3 Support Engineers)</p>
-<p><strong>Out of Office:</strong> JP Dulude</p>
+<p><strong>Active Round Robin Engineers:</strong> Artie Byers, Carlos Ramirez, JP Dulude (3 of 3 Support Engineers)</p>
 
 <table data-layout="default">
   <tbody>
@@ -963,7 +984,7 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
     </tr>
     <tr>
       <td><p>JP Dulude</p></td>
-      <td><p>Out of Office</p></td>
+      <td><p>Active</p></td>
       <td><p>${currentMetrics.engineerBreakdown?.find(e => e.name === 'JP Dulude')?.count || 'N/A'}</p></td>
       <td><p>${currentMetrics.engineerBreakdown?.find(e => e.name === 'JP Dulude')?.count ? ((currentMetrics.engineerBreakdown.find(e => e.name === 'JP Dulude').count / currentMetrics.resolvedCount) * 100).toFixed(1) : 'N/A'}%</p></td>
     </tr>
@@ -1013,8 +1034,8 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
 
 <h2>Leadership Insights</h2>
 <ul>
-  <li><strong>Automation Provides Operational Resilience:</strong> When team operated at reduced capacity (JP OOO), automation ensured service continuity—${currentMetrics.resolvedCount} tickets resolved with ${currentMetrics.overallSlaPercent}% SLA performance demonstrates that automation isn't just efficiency, it's business continuity insurance against PTO, illness, and turnover</li>
-  <li><strong>2 Active Engineers + Automation = Full Team Capacity:</strong> Artie and Carlos maintained service levels typically requiring 3+ engineers—automation absorbed the gap without requiring overtime or degraded quality, proving the scalability model works under real-world staffing constraints</li>
+  <li><strong>Automation Enables Team Efficiency:</strong> With full team capacity (3 active engineers), automation handled ${currentMetrics.automationPercent}% of tickets—${currentMetrics.resolvedCount} tickets resolved with ${currentMetrics.overallSlaPercent}% SLA performance demonstrates how automation multiplies team effectiveness</li>
+  <li><strong>3 Engineers + Automation = Scalable Operations:</strong> Full team working with automation support maintained exceptional service levels—proving the model scales effectively with proper tooling and process automation</li>
   <li><strong>SLA Performance Constrained by Approvals, Not IT:</strong> ${currentMetrics.overallSlaPercent}% SLA achievement with ${formatTime(currentMetrics.avgTTR)} resolution speed confirms IT execution is fast—remaining gaps driven by approval workflow delays outside IT's control, representing next optimization opportunity</li>
 </ul>
 
