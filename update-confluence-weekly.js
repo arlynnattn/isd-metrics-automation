@@ -10,6 +10,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { saveWeeklyMetrics } = require('./save-metrics-to-json');
+const { checkOOOStatus, formatForConfluence } = require('./check-calendar-ooo');
 
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
@@ -832,9 +833,121 @@ async function updateConfluencePage(pageId, htmlContent, pageTitle) {
 }
 
 /**
+ * Generate Summary section dynamically based on OOO status
+ */
+function generateSummarySection(currentMetrics, oooStatus) {
+  const isReducedCapacity = oooStatus && oooStatus.oooCount > 0;
+  const oooNames = oooStatus?.outOfOffice || [];
+
+  let html = `<h2>Summary</h2>\n<ul>\n`;
+
+  if (isReducedCapacity) {
+    html += `  <li><strong>Operational Resilience:</strong> Team maintained ${currentMetrics.overallSlaPercent}% SLA performance despite operating at reduced capacity (${oooNames.join(' and ')} OOO)—automation provided continuity when engineers were unavailable, demonstrating system reliability under staffing constraints</li>\n`;
+  } else {
+    html += `  <li><strong>Operational Excellence:</strong> Team maintained ${currentMetrics.overallSlaPercent}% SLA performance with full engineering capacity—automation continues to provide scalability and service continuity, demonstrating system reliability</li>\n`;
+  }
+
+  html += `  <li><strong>Scalable Operations:</strong> IT Ops delivered ${currentMetrics.resolvedCount} ticket resolutions with ${currentMetrics.automationPercent}% automation rate—demonstrating ability to scale service delivery without proportional headcount growth</li>\n`;
+  html += `  <li><strong>Next Optimization Target:</strong> Approval-dependent workflows (Snowflake, GitHub, Gong access) represent primary opportunity for further efficiency gains through governance process streamlining</li>\n`;
+  html += `</ul>\n`;
+
+  return html;
+}
+
+/**
+ * Generate Leadership Insights dynamically based on OOO status and team performance
+ */
+function generateLeadershipInsights(currentMetrics, oooStatus) {
+  const isReducedCapacity = oooStatus && oooStatus.oooCount > 0;
+  const activeCount = oooStatus?.activeCount || 3;
+  const oooNames = oooStatus?.outOfOffice || [];
+
+  let html = `<h2>Leadership Insights</h2>\n<ul>\n`;
+
+  if (isReducedCapacity) {
+    // Reduced capacity messaging
+    html += `  <li><strong>Automation Provides Operational Resilience:</strong> With ${oooNames.join(' and ')} out of office, automation ensured service continuity—${currentMetrics.resolvedCount} tickets resolved with ${currentMetrics.overallSlaPercent}% SLA performance demonstrates that automation isn't just efficiency, it's business continuity insurance against PTO, illness, and turnover</li>\n`;
+    html += `  <li><strong>${activeCount} Active Engineers + Automation = Full Team Capacity:</strong> ${oooStatus.active.join(' and ')} maintained service levels typically requiring 3+ engineers—automation absorbed the gap without requiring overtime or degraded quality, proving the scalability model works under real-world staffing constraints</li>\n`;
+  } else {
+    // Full capacity messaging
+    html += `  <li><strong>Automation Enables Team Efficiency:</strong> With full team capacity (${activeCount} active engineers), automation handled ${currentMetrics.automationPercent}% of tickets—${currentMetrics.resolvedCount} tickets resolved with ${currentMetrics.overallSlaPercent}% SLA performance demonstrates how automation multiplies team effectiveness</li>\n`;
+    html += `  <li><strong>${activeCount} Engineers + Automation = Scalable Operations:</strong> Full team working with automation support maintained exceptional service levels—proving the model scales effectively with proper tooling and process automation</li>\n`;
+  }
+
+  html += `  <li><strong>SLA Performance Constrained by Approvals, Not IT:</strong> ${currentMetrics.overallSlaPercent}% SLA achievement with ${formatTime(currentMetrics.avgTTR)} resolution speed confirms IT execution is fast—remaining gaps driven by approval workflow delays outside IT's control, representing next optimization opportunity</li>\n`;
+  html += `</ul>\n`;
+
+  return html;
+}
+
+/**
+ * Generate Team Capacity section dynamically based on OOO status
+ */
+function generateTeamCapacitySection(currentMetrics, oooStatus) {
+  const engineers = ['Carlos Ramirez', 'Artie Byers', 'JP Dulude'];
+
+  // Default to all active if no OOO data available
+  const activeList = oooStatus?.active || engineers;
+  const oooList = oooStatus?.outOfOffice || [];
+  const activeCount = oooStatus?.activeCount || engineers.length;
+  const totalCount = oooStatus?.totalEngineers || engineers.length;
+
+  let html = `<h2>Team Capacity & Availability</h2>\n`;
+  html += `<p><strong>Active Round Robin Engineers:</strong> ${activeList.join(', ')} (${activeCount} of ${totalCount} Support Engineers)</p>\n`;
+
+  if (oooList.length > 0) {
+    html += `<p><strong>Out of Office:</strong> ${oooList.join(', ')}</p>\n`;
+  }
+
+  html += `\n<table data-layout="default">\n  <tbody>\n`;
+  html += `    <tr>\n`;
+  html += `      <th><p><strong>Engineer</strong></p></th>\n`;
+  html += `      <th><p><strong>Status</strong></p></th>\n`;
+  html += `      <th><p><strong>Tickets Resolved</strong></p></th>\n`;
+  html += `      <th><p><strong>% of Team Load</strong></p></th>\n`;
+  html += `    </tr>\n`;
+
+  // Generate rows for each engineer
+  for (const engineer of engineers) {
+    const isActive = activeList.includes(engineer);
+    const status = isActive ? 'Active' : 'Out of Office';
+    const engineerData = currentMetrics.engineerBreakdown?.find(e => e.name === engineer);
+    const ticketCount = engineerData?.count || 'N/A';
+    const percentage = engineerData?.count
+      ? ((engineerData.count / currentMetrics.resolvedCount) * 100).toFixed(1) + '%'
+      : 'N/A';
+
+    html += `    <tr>\n`;
+    html += `      <td><p>${engineer}</p></td>\n`;
+    html += `      <td><p>${status}</p></td>\n`;
+    html += `      <td><p>${ticketCount}</p></td>\n`;
+    html += `      <td><p>${percentage}</p></td>\n`;
+    html += `    </tr>\n`;
+  }
+
+  // Add automation row
+  html += `    <tr>\n`;
+  html += `      <td><p>Automation</p></td>\n`;
+  html += `      <td><p>Always Available</p></td>\n`;
+  html += `      <td><p>${currentMetrics.automatedCount}</p></td>\n`;
+  html += `      <td><p>${currentMetrics.automationPercent}%</p></td>\n`;
+  html += `    </tr>\n`;
+  html += `  </tbody>\n</table>\n\n`;
+
+  // Add context about resilience based on OOO status
+  if (oooList.length > 0) {
+    html += `<p><strong>Resilience Impact:</strong> With ${oooList.join(' and ')} out of office, automation helped absorb workload alongside active engineers—demonstrating operational continuity without requiring overtime or degraded service quality.</p>\n`;
+  } else {
+    html += `<p><strong>Team Status:</strong> Full team capacity with automation support enables efficient handling of ${currentMetrics.resolvedCount} tickets while maintaining ${currentMetrics.overallSlaPercent}% SLA performance.</p>\n`;
+  }
+
+  return html;
+}
+
+/**
  * Generate Confluence HTML output
  */
-function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, previousMonth) {
+function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, previousMonth, oooStatus = null) {
   const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'long', timeStyle: 'short' });
 
   // Calculate changes
@@ -860,12 +973,7 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
 <h1>IT Ops Metrics - ${currentMonth.label}</h1>
 <p><em>Last updated: ${timestamp}</em></p>
 
-<h2>Summary</h2>
-<ul>
-  <li><strong>Operational Excellence:</strong> Team maintained ${currentMetrics.overallSlaPercent}% SLA performance with full engineering capacity—automation continues to provide scalability and service continuity, demonstrating system reliability</li>
-  <li><strong>Scalable Operations:</strong> IT Ops delivered ${currentMetrics.resolvedCount} ticket resolutions with ${currentMetrics.automationPercent}% automation rate—demonstrating ability to scale service delivery without proportional headcount growth</li>
-  <li><strong>Next Optimization Target:</strong> Approval-dependent workflows (Snowflake, GitHub, Gong access) represent primary opportunity for further efficiency gains through governance process streamlining</li>
-</ul>
+${generateSummarySection(currentMetrics, oooStatus)}
 
 <h2>Key Metrics Summary</h2>
 
@@ -959,45 +1067,7 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
   </tbody>
 </table>
 
-<h2>Team Capacity & Availability</h2>
-<p><strong>Active Round Robin Engineers:</strong> Artie Byers, Carlos Ramirez, JP Dulude (3 of 3 Support Engineers)</p>
-
-<table data-layout="default">
-  <tbody>
-    <tr>
-      <th><p><strong>Engineer</strong></p></th>
-      <th><p><strong>Status</strong></p></th>
-      <th><p><strong>Tickets Resolved</strong></p></th>
-      <th><p><strong>% of Team Load</strong></p></th>
-    </tr>
-    <tr>
-      <td><p>Carlos Ramirez</p></td>
-      <td><p>Active</p></td>
-      <td><p>${currentMetrics.engineerBreakdown?.find(e => e.name === 'Carlos Ramirez')?.count || 'N/A'}</p></td>
-      <td><p>${currentMetrics.engineerBreakdown?.find(e => e.name === 'Carlos Ramirez')?.count ? ((currentMetrics.engineerBreakdown.find(e => e.name === 'Carlos Ramirez').count / currentMetrics.resolvedCount) * 100).toFixed(1) : 'N/A'}%</p></td>
-    </tr>
-    <tr>
-      <td><p>Artie Byers</p></td>
-      <td><p>Active</p></td>
-      <td><p>${currentMetrics.engineerBreakdown?.find(e => e.name === 'Artie Byers')?.count || 'N/A'}</p></td>
-      <td><p>${currentMetrics.engineerBreakdown?.find(e => e.name === 'Artie Byers')?.count ? ((currentMetrics.engineerBreakdown.find(e => e.name === 'Artie Byers').count / currentMetrics.resolvedCount) * 100).toFixed(1) : 'N/A'}%</p></td>
-    </tr>
-    <tr>
-      <td><p>JP Dulude</p></td>
-      <td><p>Active</p></td>
-      <td><p>${currentMetrics.engineerBreakdown?.find(e => e.name === 'JP Dulude')?.count || 'N/A'}</p></td>
-      <td><p>${currentMetrics.engineerBreakdown?.find(e => e.name === 'JP Dulude')?.count ? ((currentMetrics.engineerBreakdown.find(e => e.name === 'JP Dulude').count / currentMetrics.resolvedCount) * 100).toFixed(1) : 'N/A'}%</p></td>
-    </tr>
-    <tr>
-      <td><p>Automation</p></td>
-      <td><p>Always Available</p></td>
-      <td><p>${currentMetrics.automatedCount}</p></td>
-      <td><p>${currentMetrics.automationPercent}%</p></td>
-    </tr>
-  </tbody>
-</table>
-
-<p><strong>Resilience Impact:</strong> When JP went OOO, automation helped absorb workload alongside active engineers—demonstrating operational continuity without requiring overtime or degraded service quality.</p>
+${generateTeamCapacitySection(currentMetrics, oooStatus)}
 
 <h2>Workforce Changes</h2>
 <p><strong>IT Ops completed onboarding and offboarding for the following workforce changes this period:</strong></p>
@@ -1032,12 +1102,7 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
   </tbody>
 </table>
 
-<h2>Leadership Insights</h2>
-<ul>
-  <li><strong>Automation Enables Team Efficiency:</strong> With full team capacity (3 active engineers), automation handled ${currentMetrics.automationPercent}% of tickets—${currentMetrics.resolvedCount} tickets resolved with ${currentMetrics.overallSlaPercent}% SLA performance demonstrates how automation multiplies team effectiveness</li>
-  <li><strong>3 Engineers + Automation = Scalable Operations:</strong> Full team working with automation support maintained exceptional service levels—proving the model scales effectively with proper tooling and process automation</li>
-  <li><strong>SLA Performance Constrained by Approvals, Not IT:</strong> ${currentMetrics.overallSlaPercent}% SLA achievement with ${formatTime(currentMetrics.avgTTR)} resolution speed confirms IT execution is fast—remaining gaps driven by approval workflow delays outside IT's control, representing next optimization opportunity</li>
-</ul>
+${generateLeadershipInsights(currentMetrics, oooStatus)}
 
 <h2>Strategic Focus Areas</h2>
 
@@ -1285,8 +1350,21 @@ async function main() {
       console.warn('⚠️  Warning: Failed to save metrics cache:', error.message);
     }
 
+    // Check calendar for OOO status
+    console.log('\nChecking team calendar for out-of-office status...');
+    let oooStatus = null;
+    try {
+      oooStatus = await checkOOOStatus(weeks.currentWeek.start, weeks.currentWeek.end);
+      console.log(`✓ Calendar check complete: ${oooStatus.activeCount}/${oooStatus.totalEngineers} active`);
+      if (oooStatus.outOfOffice.length > 0) {
+        console.log(`  Out of office: ${oooStatus.outOfOffice.join(', ')}`);
+      }
+    } catch (error) {
+      console.warn('⚠️  Calendar check failed, defaulting to all active:', error.message);
+    }
+
     // Generate HTML
-    const html = generateConfluenceHTML(currentMetrics, previousMetrics, weeks.currentWeek, weeks.previousWeek);
+    const html = generateConfluenceHTML(currentMetrics, previousMetrics, weeks.currentWeek, weeks.previousWeek, oooStatus);
 
     console.log('\n=== Metrics Summary ===');
     console.log(`${weeks.currentWeek.label}:`);

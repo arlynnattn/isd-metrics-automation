@@ -15,3 +15,7 @@ metrics-cache-quarterly.json
 # Backup files
 *.backup
 *.bak
+
+# Google Calendar credentials
+google-service-account.json
+google-credentials.json

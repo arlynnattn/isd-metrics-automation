@@ -7,7 +7,15 @@
     "start": "node update-confluence-metrics.js",
     "test": "node update-confluence-metrics.js"
   },
-  "keywords": ["jira", "confluence", "metrics", "automation"],
+  "keywords": [
+    "jira",
+    "confluence",
+    "metrics",
+    "automation"
+  ],
   "author": "Attentive ISD Team",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "googleapis": "^171.4.0"
+  }
 }
