@@ -19,3 +19,17 @@ metrics-cache-quarterly.json
 # Google Calendar credentials
 google-service-account.json
 google-credentials.json
+
+# Test and diagnostic scripts
+check-*.js
+diagnose-*.js
+fetch-*.js
+find-*.js
+show-*.js
+test-*.js
+try-*.js
+verify-*.js
+confirm-*.js
+*-BACKUP.js
+*-fixed.js
+draft-*.md
