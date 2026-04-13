@@ -19,6 +19,9 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Install dependencies
+        run: npm install
+
       - name: Setup Google Calendar credentials
         continue-on-error: true
         run: |
