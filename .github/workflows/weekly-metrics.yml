@@ -19,6 +19,11 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Setup Google Calendar credentials
+        if: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY != '' }}
+        run: |
+          echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}' > google-service-account.json
+
       - name: Run weekly metrics update (Dashboard)
         env:
           ATLASSIAN_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
