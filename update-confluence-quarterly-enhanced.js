@@ -439,8 +439,14 @@ async function fetchCSAT(startDate, endDate, quarterLabel) {
  */
 function isFullyAutomated(issue, automationAccounts) {
   const assignee = issue.fields.assignee?.displayName;
+  const reporter = issue.fields.reporter?.displayName;
 
-  if (!automationAccounts.includes(assignee)) {
+  // Count as automated if assignee is automation account
+  // OR if reporter is automation (automation-initiated tickets)
+  const isAutomationAssigned = automationAccounts.includes(assignee);
+  const isAutomationReported = automationAccounts.includes(reporter);
+
+  if (!isAutomationAssigned && !isAutomationReported) {
     return false;
   }
 
@@ -449,10 +455,26 @@ function isFullyAutomated(issue, automationAccounts) {
     return true;
   }
 
+  // Critical fields that indicate human work (not just comments/minor updates)
+  // Only check assignee - if ticket is reassigned from automation to human, it's not automated
+  // Allow humans to close/resolve automation-initiated tickets (that's expected workflow)
+  const criticalFields = ['assignee'];
+
   for (const history of changelog.histories) {
     const actor = history.author?.displayName;
+
+    // If human made changes, check if they touched critical fields
     if (actor && !automationAccounts.includes(actor)) {
-      return false;
+      // Check if this history entry modified critical fields
+      const items = history.items || [];
+      const touchedCriticalField = items.some(item =>
+        criticalFields.includes(item.field?.toLowerCase())
+      );
+
+      if (touchedCriticalField) {
+        return false; // Human changed assignee/status/resolution = not automated
+      }
+      // Otherwise ignore (human just commented, added labels, etc.)
     }
   }
 
@@ -466,7 +488,7 @@ async function calculateQuarterlyMetrics(jql, quarterLabel, serviceCatalogCache)
   console.log(`\nFetching issues for ${quarterLabel}...`);
 
   const fields = [
-    'created', 'resolutiondate', 'comment', 'assignee', 'labels',
+    'created', 'resolutiondate', 'comment', 'assignee', 'reporter', 'labels',
     'issuetype', 'status', 'updated', 'summary',
     FIELD_SERVICE_CATALOG, FIELD_EMPLOYEE_DEPT, FIELD_REQUEST_TYPE,
     FIELD_TTFR, FIELD_TTR
@@ -496,7 +518,10 @@ async function calculateQuarterlyMetrics(jql, quarterLabel, serviceCatalogCache)
 
   const AUTOMATION_ACCOUNTS = [
     'Attentive Jira OKTA Workflow Automation Account',
-    'Automation for Jira'
+    'Automation for Jira',
+    'Okta Jira-Service',
+    'jira-greenhouse',
+    'jira-sapling'
   ];
 
   let ttfrSum = 0;
