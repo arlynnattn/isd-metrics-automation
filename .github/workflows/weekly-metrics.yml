@@ -20,9 +20,14 @@ jobs:
           node-version: '24'
 
       - name: Setup Google Calendar credentials
-        if: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY != '' }}
+        continue-on-error: true
         run: |
-          echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}' > google-service-account.json
+          if [ -n "${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}" ]; then
+            echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}' > google-service-account.json
+            echo "✓ Google Calendar credentials configured"
+          else
+            echo "⚠️  Google Calendar credentials not configured - OOO check will be skipped"
+          fi
 
       - name: Run weekly metrics update (Dashboard)
         env:
