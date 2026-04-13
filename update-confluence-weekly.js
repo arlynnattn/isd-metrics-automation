@@ -384,8 +384,12 @@ async function countWorkforceChanges(jqlFilter, label, isRange = false) {
     ? jqlFilter
     : `resolutiondate >= ${jqlFilter}`;
 
-  // FTE Onboarding: CLONE - IT Support Onboarding from Greenhouse or Sapling
+  // FTE Onboarding Method 1: CLONE - IT Support Onboarding from Greenhouse or Sapling (automated)
   const fteOnboardingJql = `project = ISD AND summary ~ "CLONE - IT Support Onboarding" AND reporter in ("jira-greenhouse@attentivemobile.com", "jira-sapling@attentivemobile.com") AND ${dateFilter}`;
+
+  // FTE Onboarding Method 2: Manual "Onboarding Request for New Hire" (Greenhouse transition period)
+  // Exclude contractor tickets to avoid double-counting
+  const manualOnboardingJql = `project = ISD AND summary ~ "Onboarding Request for New Hire" AND NOT summary ~ "contractor" AND NOT summary ~ "Contractor" AND issuetype = "Onboarding" AND ${dateFilter}`;
 
   // Contractor Onboarding: CLONE - Contractor Onboarding
   const contractorOnboardingJql = `project = ISD AND summary ~ "CLONE - Contractor Onboarding" AND ${dateFilter}`;
@@ -393,7 +397,7 @@ async function countWorkforceChanges(jqlFilter, label, isRange = false) {
   // Offboarding: CLONE - Device IT Offboarding from Sapling
   const offboardingJql = `project = ISD AND summary ~ "CLONE - Device IT Offboarding" AND reporter = "jira-sapling@attentivemobile.com" AND ${dateFilter}`;
 
-  // Fetch FTE onboarding tickets
+  // Fetch FTE onboarding tickets (automated CLONE tickets)
   let fteOnboardingIssues = [];
   let nextPageToken = null;
   let isLast = false;
@@ -412,6 +416,29 @@ async function countWorkforceChanges(jqlFilter, label, isRange = false) {
     isLast = response.isLast !== false;
     nextPageToken = response.nextPageToken;
   }
+
+  // Fetch manual FTE onboarding tickets (Greenhouse transition period)
+  let manualOnboardingIssues = [];
+  nextPageToken = null;
+  isLast = false;
+
+  while (!isLast) {
+    let path = `/rest/api/3/search/jql?jql=${encodeURIComponent(manualOnboardingJql)}&maxResults=1000&fields=key`;
+    if (nextPageToken) {
+      path += `&nextPageToken=${encodeURIComponent(nextPageToken)}`;
+    }
+
+    const response = await makeRequest(JIRA_BASE_URL, path, 'GET', null, {
+      'Authorization': JIRA_AUTH_HEADER
+    });
+
+    manualOnboardingIssues = manualOnboardingIssues.concat(response.issues || []);
+    isLast = response.isLast !== false;
+    nextPageToken = response.nextPageToken;
+  }
+
+  // Combine both FTE methods (automated + manual during transition)
+  const totalFteOnboarding = fteOnboardingIssues.length + manualOnboardingIssues.length;
 
   // Fetch contractor onboarding tickets
   let contractorOnboardingIssues = [];
@@ -453,11 +480,13 @@ async function countWorkforceChanges(jqlFilter, label, isRange = false) {
     nextPageToken = response.nextPageToken;
   }
 
-  const totalOnboarding = fteOnboardingIssues.length + contractorOnboardingIssues.length;
-  console.log(`  Found ${fteOnboardingIssues.length} FTE onboardings, ${contractorOnboardingIssues.length} contractor onboardings, ${offboardingIssues.length} offboardings`);
+  const totalOnboarding = totalFteOnboarding + contractorOnboardingIssues.length;
+
+  // Log breakdown for visibility during Sapling->Greenhouse transition
+  console.log(`  Found ${totalFteOnboarding} FTE onboardings (${fteOnboardingIssues.length} automated + ${manualOnboardingIssues.length} manual), ${contractorOnboardingIssues.length} contractor onboardings, ${offboardingIssues.length} offboardings`);
 
   return {
-    fteOnboarding: fteOnboardingIssues.length,
+    fteOnboarding: totalFteOnboarding,
     contractorOnboarding: contractorOnboardingIssues.length,
     totalOnboarding: totalOnboarding,
     offboarding: offboardingIssues.length,

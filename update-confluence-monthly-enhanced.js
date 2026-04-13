@@ -376,12 +376,12 @@ async function countWorkforceChanges(jqlFilter, label, isRange = false) {
   // Build base resolution date filter (always prepend "resolutiondate")
   const dateFilter = `resolutiondate ${jqlFilter}`;
 
-  // FTE Onboarding: CLONE - IT Support Onboarding from Greenhouse or Sapling (PRIMARY SOURCE)
-  // These are automated tickets from HR systems, more reliable than manual calendar events
+  // FTE Onboarding Method 1: CLONE - IT Support Onboarding from Greenhouse or Sapling (automated)
   const fteOnboardingJql = `project = ISD AND summary ~ "CLONE - IT Support Onboarding" AND reporter in ("jira-greenhouse@attentivemobile.com", "jira-sapling@attentivemobile.com") AND ${dateFilter}`;
 
-  // FTE Onboarding Verification: Calendar event requests (for data quality check)
-  const fteOnboardingVerificationJql = `project = ISD AND type = Onboarding AND summary !~ "CLONE" AND summary !~ "Contractor" AND ${dateFilter}`;
+  // FTE Onboarding Method 2: Manual "Onboarding Request for New Hire" (Greenhouse transition period)
+  // Exclude contractor tickets to avoid double-counting
+  const manualOnboardingJql = `project = ISD AND summary ~ "Onboarding Request for New Hire" AND NOT summary ~ "contractor" AND NOT summary ~ "Contractor" AND issuetype = "Onboarding" AND ${dateFilter}`;
 
   // Contractor Onboarding: CLONE - Contractor Onboarding (automated tickets, no calendar events)
   const contractorOnboardingJql = `project = ISD AND summary ~ "CLONE - Contractor Onboarding" AND ${dateFilter}`;
@@ -412,13 +412,13 @@ async function countWorkforceChanges(jqlFilter, label, isRange = false) {
     nextPageToken = response.nextPageToken;
   }
 
-  // Fetch FTE onboarding verification (calendar events) for data quality check
-  let fteOnboardingVerificationIssues = [];
+  // Fetch manual FTE onboarding tickets (Greenhouse transition period)
+  let manualOnboardingIssues = [];
   nextPageToken = null;
   isLast = false;
 
   while (!isLast) {
-    let path = `/rest/api/3/search/jql?jql=${encodeURIComponent(fteOnboardingVerificationJql)}&maxResults=1000&fields=key`;
+    let path = `/rest/api/3/search/jql?jql=${encodeURIComponent(manualOnboardingJql)}&maxResults=1000&fields=key`;
     if (nextPageToken) {
       path += `&nextPageToken=${encodeURIComponent(nextPageToken)}`;
     }
@@ -427,24 +427,17 @@ async function countWorkforceChanges(jqlFilter, label, isRange = false) {
       'Authorization': JIRA_AUTH_HEADER
     });
 
-    fteOnboardingVerificationIssues = fteOnboardingVerificationIssues.concat(response.issues || []);
+    manualOnboardingIssues = manualOnboardingIssues.concat(response.issues || []);
     isLast = response.isLast !== false;
     nextPageToken = response.nextPageToken;
   }
 
-  // Verify FTE onboarding count against calendar events
-  const cloneCount = fteOnboardingIssues.length;
-  const calendarCount = fteOnboardingVerificationIssues.length;
-  const discrepancy = Math.abs(cloneCount - calendarCount);
-  const discrepancyPct = cloneCount > 0 ? (discrepancy / cloneCount * 100).toFixed(1) : 0;
+  // Combine both FTE methods (automated + manual during transition)
+  const totalFteOnboarding = fteOnboardingIssues.length + manualOnboardingIssues.length;
 
-  if (discrepancy > 0) {
-    console.log(`  ⚠️  FTE Onboarding verification: CLONE=${cloneCount}, Calendar=${calendarCount} (diff: ${discrepancy}, ${discrepancyPct}%)`);
-    if (discrepancyPct > 10) {
-      console.log(`  ⚠️  WARNING: Discrepancy exceeds 10% - may indicate data quality issue`);
-    }
-  } else {
-    console.log(`  ✅ FTE Onboarding verification: CLONE and Calendar match (${cloneCount})`);
+  // Log breakdown for visibility during Sapling->Greenhouse transition
+  if (manualOnboardingIssues.length > 0) {
+    console.log(`  Note: FTE onboarding includes ${fteOnboardingIssues.length} automated (Sapling) + ${manualOnboardingIssues.length} manual (Greenhouse transition)`);
   }
 
   // Fetch contractor onboarding tickets
@@ -507,14 +500,14 @@ async function countWorkforceChanges(jqlFilter, label, isRange = false) {
     nextPageToken = response.nextPageToken;
   }
 
-  const totalOnboarding = fteOnboardingIssues.length + contractorOnboardingIssues.length;
+  const totalOnboarding = totalFteOnboarding + contractorOnboardingIssues.length;
   const totalOffboarding = fteOffboardingIssues.length + contractorOffboardingIssues.length;
 
-  console.log(`  Found ${fteOnboardingIssues.length} FTE onboardings, ${contractorOnboardingIssues.length} contractor onboardings`);
+  console.log(`  Found ${totalFteOnboarding} FTE onboardings (${fteOnboardingIssues.length} automated + ${manualOnboardingIssues.length} manual), ${contractorOnboardingIssues.length} contractor onboardings`);
   console.log(`  Found ${fteOffboardingIssues.length} FTE offboardings, ${contractorOffboardingIssues.length} contractor offboardings`);
 
   return {
-    fteOnboarding: fteOnboardingIssues.length,
+    fteOnboarding: totalFteOnboarding,
     contractorOnboarding: contractorOnboardingIssues.length,
     totalOnboarding: totalOnboarding,
     fteOffboarding: fteOffboardingIssues.length,
@@ -530,9 +523,14 @@ async function countWorkforceChanges(jqlFilter, label, isRange = false) {
  */
 function isFullyAutomated(issue, automationAccounts) {
   const assignee = issue.fields.assignee?.displayName;
+  const reporter = issue.fields.reporter?.displayName;
 
-  // Must be assigned to one of the automation accounts
-  if (!automationAccounts.includes(assignee)) {
+  // Count as automated if assignee is automation account
+  // OR if reporter is automation (automation-initiated tickets)
+  const isAutomationAssigned = automationAccounts.includes(assignee);
+  const isAutomationReported = automationAccounts.includes(reporter);
+
+  if (!isAutomationAssigned && !isAutomationReported) {
     return false;
   }
 
@@ -543,13 +541,27 @@ function isFullyAutomated(issue, automationAccounts) {
     return true;
   }
 
+  // Critical fields that indicate human work (not just comments/minor updates)
+  // Only check assignee - if ticket is reassigned from automation to human, it's not automated
+  // Allow humans to close/resolve automation-initiated tickets (that's expected workflow)
+  const criticalFields = ['assignee'];
+
   // Check each history entry for human actors
   for (const history of changelog.histories) {
     const actor = history.author?.displayName;
 
-    // If a human (not in automation accounts list) made any change, it's not fully automated
+    // If human made changes, check if they touched critical fields
     if (actor && !automationAccounts.includes(actor)) {
-      return false;
+      // Check if this history entry modified critical fields
+      const items = history.items || [];
+      const touchedCriticalField = items.some(item =>
+        criticalFields.includes(item.field?.toLowerCase())
+      );
+
+      if (touchedCriticalField) {
+        return false; // Human changed assignee/status/resolution = not automated
+      }
+      // Otherwise ignore (human just commented, added labels, etc.)
     }
   }
 
@@ -564,7 +576,7 @@ async function calculateMonthlyMetrics(jql, monthLabel, serviceCatalogCache) {
 
   // Fetch issues with all needed fields (including changelog for automation detection)
   const fields = [
-    'created', 'resolutiondate', 'comment', 'assignee', 'labels',
+    'created', 'resolutiondate', 'comment', 'assignee', 'reporter', 'labels',
     'issuetype', 'status', 'updated', 'summary',
     FIELD_SERVICE_CATALOG, FIELD_EMPLOYEE_DEPT, FIELD_REQUEST_TYPE,
     FIELD_TTFR, FIELD_TTR
@@ -595,7 +607,10 @@ async function calculateMonthlyMetrics(jql, monthLabel, serviceCatalogCache) {
 
   const AUTOMATION_ACCOUNTS = [
     'Attentive Jira OKTA Workflow Automation Account',
-    'Automation for Jira'
+    'Automation for Jira',
+    'Okta Jira-Service',
+    'jira-greenhouse',
+    'jira-sapling'
   ];
   const now = new Date();
 
@@ -661,17 +676,24 @@ async function calculateMonthlyMetrics(jql, monthLabel, serviceCatalogCache) {
     if (isAccessRequest) {
       accessRequestCount++;
 
-      // Extract SaaS app from Service Catalog
+      // Extract ONE primary SaaS app from Service Catalog per ticket
       const serviceCatalog = issue.fields[FIELD_SERVICE_CATALOG];
       if (serviceCatalog && Array.isArray(serviceCatalog) && serviceCatalog.length > 0) {
+        let primaryApp = null;
+
         for (const obj of serviceCatalog) {
           const appName = serviceCatalogCache[obj.objectId];
           if (appName) {
-            if (!saasAppCounts[appName]) {
-              saasAppCounts[appName] = 0;
-            }
-            saasAppCounts[appName]++;
+            primaryApp = appName;
+            break;
           }
+        }
+
+        if (primaryApp) {
+          if (!saasAppCounts[primaryApp]) {
+            saasAppCounts[primaryApp] = 0;
+          }
+          saasAppCounts[primaryApp]++;
         }
       }
     }
@@ -1575,16 +1597,11 @@ async function main() {
       console.log(`\n✓ Running in CI - skipping local HTML file output`);
     }
 
-    // Try to update Confluence page (optional)
-    console.log('\nAttempting Confluence update...');
-    const pageTitle = 'ISD Monthly Metrics';
-    const updated = await updateConfluencePage(CONFLUENCE_PAGE_ID, html, pageTitle);
-    if (!updated) {
-      console.log(`\n📋 Manual steps:`);
-      console.log(`  1. Open: https://${JIRA_BASE_URL}/wiki/spaces/${CONFLUENCE_SPACE_KEY}/pages/${CONFLUENCE_PAGE_ID}`);
-      console.log(`  2. Edit the page`);
-      console.log(`  3. Paste HTML from: ${outputPath}`);
-    }
+    // Dry run only - skip Confluence update
+    console.log('\n=== DRY RUN: Confluence update skipped ===');
+    console.log('Top SaaS Apps:', JSON.stringify(currentMetrics.saasAppCounts, null, 2));
+    console.log('Total Access Requests:', currentMetrics.accessRequestCount);
+    console.log('Top SaaS App:', `${currentMetrics.saasAppCounts[0]?.[0] || 'N/A'} (${currentMetrics.saasAppCounts[0]?.[1] || 0} requests)`);
 
   } catch (error) {
     console.error('\n✗ Error:', error.message);
