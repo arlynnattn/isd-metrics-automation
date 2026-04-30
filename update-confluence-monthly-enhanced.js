@@ -39,6 +39,7 @@ const ATLASSIAN_EMAIL = process.env.ATLASSIAN_EMAIL;
 const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN || process.env.ATLASSIAN_API_TOKEN;
 const CONFLUENCE_API_TOKEN = process.env.CONFLUENCE_API_TOKEN || process.env.ATLASSIAN_API_TOKEN;
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+const REPORT_MONTH = process.env.REPORT_MONTH;
 
 if (!ATLASSIAN_EMAIL || !JIRA_API_TOKEN) {
   console.error('Error: ATLASSIAN_EMAIL and JIRA_API_TOKEN (or ATLASSIAN_API_TOKEN) environment variables are required');
@@ -292,6 +293,44 @@ async function buildServiceCatalogCache(issues) {
  */
 function getMonthRanges() {
   const now = new Date();
+  const overrideMatch = REPORT_MONTH?.match(/^(\d{4})-(\d{2})$/);
+
+  // REPORT_MONTH is interpreted as the month to publish, in YYYY-MM format.
+  // Example: REPORT_MONTH=2026-04 publishes April 2026 and compares to March 2026.
+  if (overrideMatch) {
+    const year = parseInt(overrideMatch[1], 10);
+    const monthIndex = parseInt(overrideMatch[2], 10) - 1;
+    const currentMonthStart = new Date(year, monthIndex, 1);
+    const currentMonthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+    const previousMonthStart = new Date(year, monthIndex - 1, 1);
+    const previousMonthEnd = new Date(year, monthIndex, 0, 23, 59, 59, 999);
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                        'July', 'August', 'September', 'October', 'November', 'December'];
+
+    const currentStartStr = currentMonthStart.toISOString().split('T')[0];
+    const currentEndStr = currentMonthEnd.toISOString().split('T')[0];
+    const previousStartStr = previousMonthStart.toISOString().split('T')[0];
+    const previousEndStr = previousMonthEnd.toISOString().split('T')[0];
+
+    return {
+      currentMonth: {
+        jqlFilter: `>= "${currentStartStr}" AND resolutiondate <= "${currentEndStr}"`,
+        createdFilter: `created >= "${currentStartStr}" AND created <= "${currentEndStr}"`,
+        start: currentMonthStart,
+        end: currentMonthEnd,
+        label: `${monthNames[currentMonthStart.getMonth()]} ${currentMonthStart.getFullYear()}`,
+        shortLabel: monthNames[currentMonthStart.getMonth()].substring(0, 3)
+      },
+      previousMonth: {
+        jqlFilter: `>= "${previousStartStr}" AND resolutiondate <= "${previousEndStr}"`,
+        createdFilter: `created >= "${previousStartStr}" AND created <= "${previousEndStr}"`,
+        start: previousMonthStart,
+        end: previousMonthEnd,
+        label: `${monthNames[previousMonthStart.getMonth()]} ${previousMonthStart.getFullYear()}`,
+        shortLabel: monthNames[previousMonthStart.getMonth()].substring(0, 3)
+      }
+    };
+  }
 
   // Monthly reports show the PREVIOUS completed month, not partial current month
   // Current = last month (complete), Previous = month before that (for comparison)
@@ -1597,11 +1636,16 @@ async function main() {
       console.log(`\n✓ Running in CI - skipping local HTML file output`);
     }
 
-    // Dry run only - skip Confluence update
-    console.log('\n=== DRY RUN: Confluence update skipped ===');
-    console.log('Top SaaS Apps:', JSON.stringify(currentMetrics.saasAppCounts, null, 2));
-    console.log('Total Access Requests:', currentMetrics.accessRequestCount);
-    console.log('Top SaaS App:', `${currentMetrics.saasAppCounts[0]?.[0] || 'N/A'} (${currentMetrics.saasAppCounts[0]?.[1] || 0} requests)`);
+    console.log('\nAttempting Confluence update...');
+    const pageUpdated = await updateConfluencePage(
+      CONFLUENCE_PAGE_ID,
+      html,
+      `ISD Monthly Metrics`
+    );
+
+    if (!pageUpdated) {
+      throw new Error('Monthly Metrics Confluence page update failed');
+    }
 
   } catch (error) {
     console.error('\n✗ Error:', error.message);
