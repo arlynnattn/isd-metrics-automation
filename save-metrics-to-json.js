@@ -12,6 +12,25 @@ const path = require('path');
 // You'll call this from the dashboard scripts after calculating metrics
 
 /**
+ * Format hours into human-readable time (e.g., "2h 30m" or "45m")
+ */
+function formatTime(hours) {
+  if (!hours || hours === 'N/A') return 'N/A';
+
+  const totalMinutes = Math.round(parseFloat(hours) * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+
+  if (h > 0 && m > 0) {
+    return `${h}h ${m}m`;
+  } else if (h > 0) {
+    return `${h}h`;
+  } else {
+    return `${m}m`;
+  }
+}
+
+/**
  * Save weekly metrics to JSON file
  */
 function saveWeeklyMetrics(currentMetrics, previousMetrics, weekRanges) {
@@ -21,13 +40,19 @@ function saveWeeklyMetrics(currentMetrics, previousMetrics, weekRanges) {
       ...currentMetrics,
       period: weekRanges.currentWeek.label,
       start: weekRanges.currentWeek.start,
-      end: weekRanges.currentWeek.end
+      end: weekRanges.currentWeek.end,
+      // Add formatted time values for Slack/display
+      avgTTFRFormatted: formatTime(currentMetrics.avgTTFR),
+      avgTTRFormatted: formatTime(currentMetrics.avgTTR),
     },
     previousWeek: {
       ...previousMetrics,
       period: weekRanges.previousWeek.label,
       start: weekRanges.previousWeek.start,
-      end: weekRanges.previousWeek.end
+      end: weekRanges.previousWeek.end,
+      // Add formatted time values for Slack/display
+      avgTTFRFormatted: formatTime(previousMetrics.avgTTFR),
+      avgTTRFormatted: formatTime(previousMetrics.avgTTR),
     }
   };
 
@@ -47,13 +72,19 @@ function saveMonthlyMetrics(currentMetrics, previousMetrics, monthRanges) {
       ...currentMetrics,
       period: monthRanges.currentMonth.label,
       start: monthRanges.currentMonth.start,
-      end: monthRanges.currentMonth.end
+      end: monthRanges.currentMonth.end,
+      // Add formatted time values for Slack/display
+      avgTTFRFormatted: formatTime(currentMetrics.avgTTFR),
+      avgTTRFormatted: formatTime(currentMetrics.avgTTR),
     },
     previousMonth: {
       ...previousMetrics,
       period: monthRanges.previousMonth.label,
       start: monthRanges.previousMonth.start,
-      end: monthRanges.previousMonth.end
+      end: monthRanges.previousMonth.end,
+      // Add formatted time values for Slack/display
+      avgTTFRFormatted: formatTime(previousMetrics.avgTTFR),
+      avgTTRFormatted: formatTime(previousMetrics.avgTTR),
     }
   };
 
