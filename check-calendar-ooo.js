@@ -121,6 +121,189 @@ async function checkOOOStatus(weekStart = new Date(), weekEnd = null) {
 }
 
 /**
+ * Get the Monday of a given week
+ * @param {Date} date - Any date in the week
+ * @returns {Date} - Monday of that week at 00:00:00
+ */
+function getMondayOfWeek(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  const monday = new Date(d.setDate(diff));
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
+/**
+ * Get the Sunday of a given week
+ * @param {Date} monday - Monday of the week
+ * @returns {Date} - Sunday of that week at 23:59:59
+ */
+function getSundayOfWeek(monday) {
+  const sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return sunday;
+}
+
+/**
+ * Extract person name from calendar event
+ * Handles various formats: "First Day: John Doe", "John Doe - First Day", etc.
+ * @param {string} summary - Event summary text
+ * @returns {string|null} - Extracted person name or null
+ */
+function extractPersonName(summary) {
+  if (!summary) return null;
+
+  // Remove common prefixes/suffixes iteratively
+  let name = summary.trim();
+  const patterns = [
+    /^(CLONE|First Day|Last Day|IT Support|Onboarding|Offboarding)[\s:;\-]+/gi,
+    /[\s:;\-]+(CLONE|First Day|Last Day|IT Support|Onboarding|Offboarding)$/gi
+  ];
+
+  // Keep removing patterns until no more matches
+  let changed = true;
+  while (changed) {
+    const before = name;
+    for (const pattern of patterns) {
+      name = name.replace(pattern, '').trim();
+    }
+    changed = (name !== before);
+  }
+
+  // Check if result is meaningful (not just keywords and long enough)
+  const keywords = ['first day', 'last day', 'clone', 'it support', 'onboarding', 'offboarding'];
+  const isKeywordOnly = keywords.some(kw => name.toLowerCase() === kw);
+
+  if (!name || name.length < 3 || isKeywordOnly) {
+    // Look for patterns like "First Day: Name" or "Name - First Day"
+    const match = summary.match(/(?:First Day|Last Day)[\s:;\-]+([A-Za-z\s]+)|([A-Za-z\s]+)[\s:;\-]+(?:First Day|Last Day)/i);
+    if (match) {
+      name = (match[1] || match[2]).trim();
+    } else {
+      return null; // No valid name found
+    }
+  }
+
+  return name && name.length >= 3 ? name : null;
+}
+
+/**
+ * Check workforce changes from Google Calendar
+ * Uses "First Day" events for onboarding (Monday cohort only)
+ * Uses "Last Day" events for offboarding (Monday-Sunday range)
+ *
+ * @param {Date} weekStart - Monday of the reporting week
+ * @returns {Promise<Object>} - Workforce change data with explicit date ranges
+ */
+async function checkWorkforceChanges(weekStart) {
+  try {
+    const calendar = await getCalendarClient();
+
+    // Ensure weekStart is a Monday
+    const monday = getMondayOfWeek(weekStart);
+    const sunday = getSundayOfWeek(monday);
+
+    // Format dates for output
+    const mondayStr = monday.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const sundayStr = sunday.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+    console.log(`\nChecking workforce changes:`);
+    console.log(`  Onboarding cohort: ${mondayStr} (Monday only)`);
+    console.log(`  Offboarding range: ${mondayStr} to ${sundayStr} (Monday-Sunday)`);
+
+    // Fetch First Day events for Monday cohort (only that specific day)
+    const mondayEnd = new Date(monday);
+    mondayEnd.setHours(23, 59, 59, 999);
+
+    const onboardingResponse = await calendar.events.list({
+      calendarId: CALENDAR_ID,
+      timeMin: monday.toISOString(),
+      timeMax: mondayEnd.toISOString(),
+      q: 'First Day',
+      singleEvents: true,
+      orderBy: 'startTime',
+    });
+
+    const onboardingEvents = onboardingResponse.data.items || [];
+    console.log(`  Found ${onboardingEvents.length} "First Day" events on Monday`);
+
+    // Fetch Last Day events for Monday-Sunday range
+    const offboardingResponse = await calendar.events.list({
+      calendarId: CALENDAR_ID,
+      timeMin: monday.toISOString(),
+      timeMax: sunday.toISOString(),
+      q: 'Last Day',
+      singleEvents: true,
+      orderBy: 'startTime',
+    });
+
+    const offboardingEvents = offboardingResponse.data.items || [];
+    console.log(`  Found ${offboardingEvents.length} "Last Day" events in week range`);
+
+    // De-duplicate onboarding by person name
+    const onboardedPeople = new Set();
+    for (const event of onboardingEvents) {
+      const name = extractPersonName(event.summary);
+      if (name) {
+        onboardedPeople.add(name);
+        console.log(`    ✅ Onboarded: ${name} (${event.summary})`);
+      }
+    }
+
+    // De-duplicate offboarding by person name
+    const offboardedPeople = new Set();
+    for (const event of offboardingEvents) {
+      const name = extractPersonName(event.summary);
+      if (name) {
+        offboardedPeople.add(name);
+        console.log(`    ❌ Offboarded: ${name} (${event.summary})`);
+      }
+    }
+
+    const onboardedCount = onboardedPeople.size;
+    const offboardedCount = offboardedPeople.size;
+    const netChange = onboardedCount - offboardedCount;
+
+    return {
+      onboardedCount,
+      offboardedCount,
+      netChange,
+      onboardedPeople: Array.from(onboardedPeople),
+      offboardedPeople: Array.from(offboardedPeople),
+      // Explicit date labels for reporting
+      onboardingDateLabel: `${mondayStr} cohort`,
+      offboardingDateLabel: `${mondayStr} to ${sundayStr}`,
+      // Raw dates for further processing
+      onboardingDate: monday,
+      offboardingStartDate: monday,
+      offboardingEndDate: sunday,
+      // Note about FTE/contractor split
+      fteContractorSplitSupported: false,
+      splitNote: 'FTE/Contractor split not available from calendar - use Jira ticket validation if needed'
+    };
+
+  } catch (error) {
+    console.error('Error checking workforce changes from calendar:', error.message);
+
+    // Return empty result on error
+    return {
+      onboardedCount: 0,
+      offboardedCount: 0,
+      netChange: 0,
+      onboardedPeople: [],
+      offboardedPeople: [],
+      onboardingDateLabel: 'Unknown',
+      offboardingDateLabel: 'Unknown',
+      fteContractorSplitSupported: false,
+      splitNote: 'Calendar check failed',
+      error: error.message
+    };
+  }
+}
+
+/**
  * Format status for Confluence HTML
  */
 function formatForConfluence(status) {
@@ -139,7 +322,11 @@ function formatForConfluence(status) {
 // Export functions for use in other scripts
 module.exports = {
   checkOOOStatus,
+  checkWorkforceChanges,
   formatForConfluence,
+  getMondayOfWeek,
+  getSundayOfWeek,
+  extractPersonName,
   ENGINEERS,
 };
 

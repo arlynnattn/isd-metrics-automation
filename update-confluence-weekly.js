@@ -10,7 +10,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { saveWeeklyMetrics } = require('./save-metrics-to-json');
-const { checkOOOStatus, formatForConfluence } = require('./check-calendar-ooo');
+const { checkOOOStatus, checkWorkforceChanges, formatForConfluence, getMondayOfWeek } = require('./check-calendar-ooo');
 
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
@@ -302,7 +302,7 @@ async function buildServiceCatalogCache(issues) {
 }
 
 /**
- * Get date range for current and previous month
+ * Get date range for current and previous week
  */
 function getWeekRanges() {
   const now = new Date();
@@ -313,6 +313,10 @@ function getWeekRanges() {
   const twoWeeksAgo = new Date(now);
   twoWeeksAgo.setDate(now.getDate() - 14);
 
+  // Calculate Monday of current week for workforce changes
+  const currentMonday = getMondayOfWeek(now);
+  const previousMonday = getMondayOfWeek(weekAgo);
+
   const options = { month: 'short', day: 'numeric' };
   const currentLabel = `Last 7 days (${weekAgo.toLocaleDateString('en-US', options)} - ${now.toLocaleDateString('en-US', options)}, ${now.getFullYear()})`;
   const previousLabel = `Previous 7 days (${twoWeeksAgo.toLocaleDateString('en-US', options)} - ${weekAgo.toLocaleDateString('en-US', options)}, ${weekAgo.getFullYear()})`;
@@ -322,6 +326,7 @@ function getWeekRanges() {
       jqlFilter: '-7d', // Use Jira's -7d syntax
       start: weekAgo, // Actual date for Slack/CSAT
       end: now,
+      monday: currentMonday, // Monday for workforce changes
       label: currentLabel,
       shortLabel: 'This Week'
     },
@@ -331,6 +336,7 @@ function getWeekRanges() {
       createdFilterRange: 'created >= -14d AND created < -7d', // Full range filter for created
       start: twoWeeksAgo, // Actual date for Slack/CSAT
       end: weekAgo,
+      monday: previousMonday, // Monday for workforce changes
       label: previousLabel,
       shortLabel: 'Last Week'
     }
@@ -374,123 +380,54 @@ async function countCreatedTickets(jqlFilter, label, isRange = false) {
 }
 
 /**
- * Count onboarding and offboarding tickets by resolved date
+ * Count workforce changes using Google Calendar as source of truth
+ * Uses "First Day" events for onboarding (Monday cohort only)
+ * Uses "Last Day" events for offboarding (Monday-Sunday range)
+ * Jira is only used for ticket coverage validation, not for counting
  */
-async function countWorkforceChanges(jqlFilter, label, isRange = false) {
+async function countWorkforceChanges(weekStartDate, label) {
   console.log(`  Counting workforce changes for ${label}`);
 
-  // Build base resolution date filter
-  const dateFilter = isRange
-    ? jqlFilter
-    : `resolutiondate >= ${jqlFilter}`;
+  // Get workforce changes from Google Calendar
+  const calendarData = await checkWorkforceChanges(weekStartDate);
 
-  // FTE Onboarding Method 1: CLONE - IT Support Onboarding from Greenhouse or Sapling (automated)
-  const fteOnboardingJql = `project = ISD AND summary ~ "CLONE - IT Support Onboarding" AND reporter in ("jira-greenhouse@attentivemobile.com", "jira-sapling@attentivemobile.com") AND ${dateFilter}`;
-
-  // FTE Onboarding Method 2: Manual "Onboarding Request for New Hire" (Greenhouse transition period)
-  // Exclude contractor tickets to avoid double-counting
-  const manualOnboardingJql = `project = ISD AND summary ~ "Onboarding Request for New Hire" AND NOT summary ~ "contractor" AND NOT summary ~ "Contractor" AND issuetype = "Onboarding" AND ${dateFilter}`;
-
-  // Contractor Onboarding: CLONE - Contractor Onboarding
-  const contractorOnboardingJql = `project = ISD AND summary ~ "CLONE - Contractor Onboarding" AND ${dateFilter}`;
-
-  // Offboarding: CLONE - Device IT Offboarding from Sapling
-  const offboardingJql = `project = ISD AND summary ~ "CLONE - Device IT Offboarding" AND reporter = "jira-sapling@attentivemobile.com" AND ${dateFilter}`;
-
-  // Fetch FTE onboarding tickets (automated CLONE tickets)
-  let fteOnboardingIssues = [];
-  let nextPageToken = null;
-  let isLast = false;
-
-  while (!isLast) {
-    let path = `/rest/api/3/search/jql?jql=${encodeURIComponent(fteOnboardingJql)}&maxResults=1000&fields=key`;
-    if (nextPageToken) {
-      path += `&nextPageToken=${encodeURIComponent(nextPageToken)}`;
-    }
-
-    const response = await makeRequest(JIRA_BASE_URL, path, 'GET', null, {
-      'Authorization': JIRA_AUTH_HEADER
-    });
-
-    fteOnboardingIssues = fteOnboardingIssues.concat(response.issues || []);
-    isLast = response.isLast !== false;
-    nextPageToken = response.nextPageToken;
+  if (calendarData.error) {
+    console.warn(`  ⚠️  Calendar check failed: ${calendarData.error}`);
+    console.warn(`  ⚠️  Falling back to zero counts due to calendar unavailability`);
   }
 
-  // Fetch manual FTE onboarding tickets (Greenhouse transition period)
-  let manualOnboardingIssues = [];
-  nextPageToken = null;
-  isLast = false;
+  // Log the results with explicit dates
+  console.log(`  Calendar-based counts:`);
+  console.log(`    Onboarded (${calendarData.onboardingDateLabel}): ${calendarData.onboardedCount}`);
+  console.log(`    Offboarded (${calendarData.offboardingDateLabel}): ${calendarData.offboardedCount}`);
+  console.log(`    Net change: ${calendarData.netChange > 0 ? '+' : ''}${calendarData.netChange}`);
 
-  while (!isLast) {
-    let path = `/rest/api/3/search/jql?jql=${encodeURIComponent(manualOnboardingJql)}&maxResults=1000&fields=key`;
-    if (nextPageToken) {
-      path += `&nextPageToken=${encodeURIComponent(nextPageToken)}`;
-    }
-
-    const response = await makeRequest(JIRA_BASE_URL, path, 'GET', null, {
-      'Authorization': JIRA_AUTH_HEADER
-    });
-
-    manualOnboardingIssues = manualOnboardingIssues.concat(response.issues || []);
-    isLast = response.isLast !== false;
-    nextPageToken = response.nextPageToken;
+  if (calendarData.onboardedPeople.length > 0) {
+    console.log(`    Onboarded people: ${calendarData.onboardedPeople.join(', ')}`);
+  }
+  if (calendarData.offboardedPeople.length > 0) {
+    console.log(`    Offboarded people: ${calendarData.offboardedPeople.join(', ')}`);
   }
 
-  // Combine both FTE methods (automated + manual during transition)
-  const totalFteOnboarding = fteOnboardingIssues.length + manualOnboardingIssues.length;
-
-  // Fetch contractor onboarding tickets
-  let contractorOnboardingIssues = [];
-  nextPageToken = null;
-  isLast = false;
-
-  while (!isLast) {
-    let path = `/rest/api/3/search/jql?jql=${encodeURIComponent(contractorOnboardingJql)}&maxResults=1000&fields=key`;
-    if (nextPageToken) {
-      path += `&nextPageToken=${encodeURIComponent(nextPageToken)}`;
-    }
-
-    const response = await makeRequest(JIRA_BASE_URL, path, 'GET', null, {
-      'Authorization': JIRA_AUTH_HEADER
-    });
-
-    contractorOnboardingIssues = contractorOnboardingIssues.concat(response.issues || []);
-    isLast = response.isLast !== false;
-    nextPageToken = response.nextPageToken;
+  // Note about FTE/contractor split
+  if (!calendarData.fteContractorSplitSupported) {
+    console.log(`    ℹ️  ${calendarData.splitNote}`);
   }
 
-  // Fetch offboarding tickets
-  let offboardingIssues = [];
-  nextPageToken = null;
-  isLast = false;
-
-  while (!isLast) {
-    let path = `/rest/api/3/search/jql?jql=${encodeURIComponent(offboardingJql)}&maxResults=1000&fields=key`;
-    if (nextPageToken) {
-      path += `&nextPageToken=${encodeURIComponent(nextPageToken)}`;
-    }
-
-    const response = await makeRequest(JIRA_BASE_URL, path, 'GET', null, {
-      'Authorization': JIRA_AUTH_HEADER
-    });
-
-    offboardingIssues = offboardingIssues.concat(response.issues || []);
-    isLast = response.isLast !== false;
-    nextPageToken = response.nextPageToken;
-  }
-
-  const totalOnboarding = totalFteOnboarding + contractorOnboardingIssues.length;
-
-  // Log breakdown for visibility during Sapling->Greenhouse transition
-  console.log(`  Found ${totalFteOnboarding} FTE onboardings (${fteOnboardingIssues.length} automated + ${manualOnboardingIssues.length} manual), ${contractorOnboardingIssues.length} contractor onboardings, ${offboardingIssues.length} offboardings`);
-
+  // Return data in format expected by the rest of the script
+  // Note: FTE/contractor breakdown is not supported by calendar alone
   return {
-    fteOnboarding: totalFteOnboarding,
-    contractorOnboarding: contractorOnboardingIssues.length,
-    totalOnboarding: totalOnboarding,
-    offboarding: offboardingIssues.length,
-    netChange: totalOnboarding - offboardingIssues.length
+    fteOnboarding: calendarData.onboardedCount, // Total onboarding (FTE split not available)
+    contractorOnboarding: 0, // Not supported by calendar
+    totalOnboarding: calendarData.onboardedCount,
+    offboarding: calendarData.offboardedCount,
+    netChange: calendarData.netChange,
+    // Include calendar-specific fields for better reporting
+    onboardingDateLabel: calendarData.onboardingDateLabel,
+    offboardingDateLabel: calendarData.offboardingDateLabel,
+    onboardedPeople: calendarData.onboardedPeople,
+    offboardedPeople: calendarData.offboardedPeople,
+    splitSupported: false // FTE/contractor split not available from calendar
   };
 }
 
@@ -1100,6 +1037,7 @@ ${generateTeamCapacitySection(currentMetrics, oooStatus)}
 
 <h2>Workforce Changes</h2>
 <p><strong>IT Ops completed onboarding and offboarding for the following workforce changes this period:</strong></p>
+<p><em>Note: Dates are based on Google Calendar "First Day" and "Last Day" events. Onboarding counts Monday cohort only; offboarding counts full Monday-Sunday week.</em></p>
 
 <table data-layout="default">
   <tbody>
@@ -1109,19 +1047,14 @@ ${generateTeamCapacitySection(currentMetrics, oooStatus)}
       <th><p><strong>Last Week</strong></p></th>
     </tr>
     <tr>
-      <td><p>FTE Onboarded</p></td>
-      <td><p>${currentMetrics.workforce?.fteOnboarding || 0} employees</p></td>
-      <td><p>${previousMetrics.workforce?.fteOnboarding || 0} employees</p></td>
+      <td><p>Onboarded</p></td>
+      <td><p>${currentMetrics.workforce?.totalOnboarding || 0} (${currentMetrics.workforce?.onboardingDateLabel || 'N/A'})</p></td>
+      <td><p>${previousMetrics.workforce?.totalOnboarding || 0} (${previousMetrics.workforce?.onboardingDateLabel || 'N/A'})</p></td>
     </tr>
     <tr>
-      <td><p>Contractors Onboarded</p></td>
-      <td><p>${currentMetrics.workforce?.contractorOnboarding || 0} contractors</p></td>
-      <td><p>${previousMetrics.workforce?.contractorOnboarding || 0} contractors</p></td>
-    </tr>
-    <tr>
-      <td><p>Employees Offboarded</p></td>
-      <td><p>${currentMetrics.workforce?.offboarding || 0} employees</p></td>
-      <td><p>${previousMetrics.workforce?.offboarding || 0} employees</p></td>
+      <td><p>Offboarded</p></td>
+      <td><p>${currentMetrics.workforce?.offboarding || 0} (${currentMetrics.workforce?.offboardingDateLabel || 'N/A'})</p></td>
+      <td><p>${previousMetrics.workforce?.offboarding || 0} (${previousMetrics.workforce?.offboardingDateLabel || 'N/A'})</p></td>
     </tr>
     <tr>
       <td><p>Net Headcount Change</p></td>
@@ -1130,6 +1063,7 @@ ${generateTeamCapacitySection(currentMetrics, oooStatus)}
     </tr>
   </tbody>
 </table>
+<p><em>FTE/Contractor split: ${currentMetrics.workforce?.splitSupported ? 'Available' : 'Not available from calendar data - use Jira for ticket validation if needed'}</em></p>
 
 ${generateLeadershipInsights(currentMetrics, oooStatus)}
 
@@ -1362,12 +1296,14 @@ async function main() {
     currentMetrics.csat = currentCSAT;
     previousMetrics.csat = previousCSAT;
 
-    // Count workforce changes (onboarding/offboarding by resolved date)
-    console.log('\nCounting workforce changes...');
-    const currentWorkforce = await countWorkforceChanges(weeks.currentWeek.jqlFilter, weeks.currentWeek.label, false);
-    const previousWorkforce = await countWorkforceChanges(weeks.previousWeek.jqlFilterRange, weeks.previousWeek.label, true);
-    console.log(`Current week: ${currentWorkforce.fteOnboarding} FTE + ${currentWorkforce.contractorOnboarding} contractors onboarded, ${currentWorkforce.offboarding} offboarded`);
-    console.log(`Previous week: ${previousWorkforce.fteOnboarding} FTE + ${previousWorkforce.contractorOnboarding} contractors onboarded, ${previousWorkforce.offboarding} offboarded`);
+    // Count workforce changes using Google Calendar as source of truth
+    console.log('\nCounting workforce changes from Google Calendar...');
+    const currentWorkforce = await countWorkforceChanges(weeks.currentWeek.monday, weeks.currentWeek.label);
+    const previousWorkforce = await countWorkforceChanges(weeks.previousWeek.monday, weeks.previousWeek.label);
+    console.log(`Current week (${currentWorkforce.onboardingDateLabel}): ${currentWorkforce.totalOnboarding} onboarded`);
+    console.log(`Current week (${currentWorkforce.offboardingDateLabel}): ${currentWorkforce.offboarding} offboarded`);
+    console.log(`Previous week (${previousWorkforce.onboardingDateLabel}): ${previousWorkforce.totalOnboarding} onboarded`);
+    console.log(`Previous week (${previousWorkforce.offboardingDateLabel}): ${previousWorkforce.offboarding} offboarded`);
 
     currentMetrics.workforce = currentWorkforce;
     previousMetrics.workforce = previousWorkforce;
