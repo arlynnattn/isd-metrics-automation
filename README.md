@@ -16,7 +16,7 @@ Comprehensive documentation is available in the [`docs/`](./docs) folder:
 
 ### Weekly Updates (Every Monday at 9:00 AM ET)
 GitHub Actions automatically:
-1. Updates **Weekly Metrics Dashboard** (last 7 days metrics)
+1. Updates **Weekly Metrics Dashboard** (prior full Monday-Sunday week)
 2. Updates **Weekly Analyst Report** (executive analysis)
 3. Posts notification to **#itops-metric-reporting** Slack channel
 
@@ -56,7 +56,7 @@ cd ~/isd-metrics-automation
 - ✅ Business hours SLA calculations (9-6 PM ET, Mon-Fri) - Uses Jira SLA fields
 
 **Report Types:**
-- **Weekly Data Report**: Last 7 days metrics - saves to Desktop (manual Confluence paste required)
+- **Weekly Data Report**: Prior full Monday-Sunday week metrics - saves to Desktop (manual Confluence paste required)
 - **Monthly Data Report**: Current month metrics - saves to Desktop (manual Confluence paste required)
 - **Quarterly Data Report**: Q1 2026 (Jan-Mar) metrics - saves to Desktop for MBR/QBR
 - **Weekly Analyst Report**: Executive analysis - automatically updates Confluence

@@ -10,7 +10,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { saveWeeklyMetrics } = require('./save-metrics-to-json');
-const { checkOOOStatus, checkWorkforceChanges, formatForConfluence, getMondayOfWeek } = require('./check-calendar-ooo');
+const { checkOOOStatus, checkWorkforceChanges } = require('./check-calendar-ooo');
 
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
@@ -113,11 +113,11 @@ async function fetchCSAT(startDate, endDate, monthLabel) {
 
   try {
     // Format dates for JQL
-    const startStr = startDate.toISOString().split('T')[0];
-    const endStr = endDate.toISOString().split('T')[0];
+    const startStr = formatDateForJql(startDate);
+    const endStr = formatDateForJql(endDate);
 
-    // Query for tickets with satisfaction ratings in the date range
-    const jql = `project = ISD AND "${FIELD_SATISFACTION_DATE}" >= "${startStr}" AND "${FIELD_SATISFACTION_DATE}" <= "${endStr}"`;
+    // Use an exclusive end date so weekly windows do not overlap on Monday runs.
+    const jql = `project = ISD AND "${FIELD_SATISFACTION_DATE}" >= "${startStr}" AND "${FIELD_SATISFACTION_DATE}" < "${endStr}"`;
 
     const path = `/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=1000&fields=${FIELD_SATISFACTION},${FIELD_SATISFACTION_DATE}`;
     const response = await makeRequest(JIRA_BASE_URL, path, 'GET', null, {
@@ -217,7 +217,7 @@ async function fetchSlackMetrics(startDate, endDate, monthLabel) {
 
     // Fetch messages in date range
     const oldest = Math.floor(startDate.getTime() / 1000);
-    const latest = Math.floor(endDate.getTime() / 1000);
+    const latest = Math.floor(endDate.getTime() / 1000) - 1;
 
     let allMessages = [];
     let cursor = null;
@@ -306,41 +306,59 @@ async function buildServiceCatalogCache(issues) {
  */
 function getWeekRanges() {
   const now = new Date();
+  const currentMonday = getUtcMonday(now);
+  const reportWeekStart = addUtcDays(currentMonday, -7);
+  const reportWeekEndExclusive = currentMonday;
+  const previousWeekStart = addUtcDays(currentMonday, -14);
+  const previousWeekEndExclusive = reportWeekStart;
+  const reportWeekEndInclusive = addUtcDays(reportWeekEndExclusive, -1);
+  const previousWeekEndInclusive = addUtcDays(previousWeekEndExclusive, -1);
+  const labelOptions = { month: 'short', day: 'numeric', timeZone: 'UTC' };
 
-  // Calculate actual date ranges for Slack/CSAT
-  const weekAgo = new Date(now);
-  weekAgo.setDate(now.getDate() - 7);
-  const twoWeeksAgo = new Date(now);
-  twoWeeksAgo.setDate(now.getDate() - 14);
-
-  // Calculate Monday of current week for workforce changes
-  const currentMonday = getMondayOfWeek(now);
-  const previousMonday = getMondayOfWeek(weekAgo);
-
-  const options = { month: 'short', day: 'numeric' };
-  const currentLabel = `Last 7 days (${weekAgo.toLocaleDateString('en-US', options)} - ${now.toLocaleDateString('en-US', options)}, ${now.getFullYear()})`;
-  const previousLabel = `Previous 7 days (${twoWeeksAgo.toLocaleDateString('en-US', options)} - ${weekAgo.toLocaleDateString('en-US', options)}, ${weekAgo.getFullYear()})`;
+  const currentLabel = `${reportWeekStart.toLocaleDateString('en-US', labelOptions)} - ${reportWeekEndInclusive.toLocaleDateString('en-US', labelOptions)}, ${reportWeekEndInclusive.getUTCFullYear()}`;
+  const previousLabel = `${previousWeekStart.toLocaleDateString('en-US', labelOptions)} - ${previousWeekEndInclusive.toLocaleDateString('en-US', labelOptions)}, ${previousWeekEndInclusive.getUTCFullYear()}`;
 
   return {
     currentWeek: {
-      jqlFilter: '-7d', // Use Jira's -7d syntax
-      start: weekAgo, // Actual date for Slack/CSAT
-      end: now,
-      monday: currentMonday, // Monday for workforce changes
+      resolvedFilterRange: buildJqlDateRange('resolutiondate', reportWeekStart, reportWeekEndExclusive),
+      createdFilterRange: buildJqlDateRange('created', reportWeekStart, reportWeekEndExclusive),
+      start: reportWeekStart,
+      end: reportWeekEndExclusive,
+      monday: reportWeekStart,
       label: currentLabel,
       shortLabel: 'This Week'
     },
     previousWeek: {
-      jqlFilter: '-14d', // Starting point for previous week
-      jqlFilterRange: 'resolutiondate >= -14d AND resolutiondate < -7d', // Full range filter for resolved
-      createdFilterRange: 'created >= -14d AND created < -7d', // Full range filter for created
-      start: twoWeeksAgo, // Actual date for Slack/CSAT
-      end: weekAgo,
-      monday: previousMonday, // Monday for workforce changes
+      resolvedFilterRange: buildJqlDateRange('resolutiondate', previousWeekStart, previousWeekEndExclusive),
+      createdFilterRange: buildJqlDateRange('created', previousWeekStart, previousWeekEndExclusive),
+      start: previousWeekStart,
+      end: previousWeekEndExclusive,
+      monday: previousWeekStart,
       label: previousLabel,
       shortLabel: 'Last Week'
     }
   };
+}
+
+function addUtcDays(date, days) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function getUtcMonday(date) {
+  const utcDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = utcDate.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  return addUtcDays(utcDate, diff);
+}
+
+function formatDateForJql(date) {
+  return date.toISOString().split('T')[0];
+}
+
+function buildJqlDateRange(fieldName, startDateInclusive, endDateExclusive) {
+  return `${fieldName} >= "${formatDateForJql(startDateInclusive)}" AND ${fieldName} < "${formatDateForJql(endDateExclusive)}"`;
 }
 
 /**
@@ -1254,10 +1272,10 @@ async function main() {
 
     const weeks = getWeekRanges();
 
-    // Fetch current week resolved issues first to build cache
+    // Fetch the most recent completed week first to build the Service Catalog cache.
     const resolvedStatuses = '"13. Done", Canceled, Closed, Completed, Declined, Resolved';
-    const currentJQL = `project = ISD AND resolutiondate >= ${weeks.currentWeek.jqlFilter} AND status in (${resolvedStatuses})`;
-    console.log('\nFetching current week issues for cache building...');
+    const currentJQL = `project = ISD AND ${weeks.currentWeek.resolvedFilterRange} AND status in (${resolvedStatuses})`;
+    console.log('\nFetching completed-week issues for cache building...');
     const path = `/rest/api/3/search/jql?jql=${encodeURIComponent(currentJQL)}&maxResults=1000&fields=${FIELD_SERVICE_CATALOG}`;
     const response = await makeRequest(JIRA_BASE_URL, path, 'GET', null, {
       'Authorization': JIRA_AUTH_HEADER
@@ -1267,15 +1285,15 @@ async function main() {
     const serviceCatalogCache = await buildServiceCatalogCache(response.issues);
 
     // Calculate metrics for both weeks using resolutiondate + status filter
-    const currentResolvedJQL = `project = ISD AND resolutiondate >= ${weeks.currentWeek.jqlFilter} AND status in (${resolvedStatuses})`;
-    const previousResolvedJQL = `project = ISD AND ${weeks.previousWeek.jqlFilterRange} AND status in (${resolvedStatuses})`;
+    const currentResolvedJQL = `project = ISD AND ${weeks.currentWeek.resolvedFilterRange} AND status in (${resolvedStatuses})`;
+    const previousResolvedJQL = `project = ISD AND ${weeks.previousWeek.resolvedFilterRange} AND status in (${resolvedStatuses})`;
 
     const currentMetrics = await calculateMonthlyMetrics(currentResolvedJQL, weeks.currentWeek.label, serviceCatalogCache);
     const previousMetrics = await calculateMonthlyMetrics(previousResolvedJQL, weeks.previousWeek.label, serviceCatalogCache);
 
     // Count created tickets for both weeks
     console.log('\nCounting created tickets...');
-    const currentCreated = await countCreatedTickets(weeks.currentWeek.jqlFilter, weeks.currentWeek.label, false);
+    const currentCreated = await countCreatedTickets(weeks.currentWeek.createdFilterRange, weeks.currentWeek.label, true);
     const previousCreated = await countCreatedTickets(weeks.previousWeek.createdFilterRange, weeks.previousWeek.label, true);
     console.log(`Current week created: ${currentCreated}, Previous week created: ${previousCreated}`);
 

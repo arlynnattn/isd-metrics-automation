@@ -13,7 +13,7 @@ Complete automation schedule for all weekly and monthly updates.
 **What Updates:**
 1. **Weekly Metrics Dashboard** (6423805982)
    - Script: `update-confluence-weekly.js`
-   - Metrics: Last 7 days
+   - Metrics: Prior full Monday-Sunday week
    - Link: https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982
 
 2. **Weekly Analyst Report** (6424363046)
