@@ -66,9 +66,7 @@ jobs:
           CSAT_COUNT=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.csat.totalResponses)")
           AUTO_PCT=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.automationPercent)")
           AUTO_COUNT=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.automatedCount)")
-          FTE_ON=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.workforce.fteOnboarding)")
-          CONT_ON=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.workforce.contractorOnboarding)")
-          OFFBOARD=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.workforce.offboarding)")
+          WORKFORCE_TEXT=$(node -e 'const wf=require("./metrics-cache-weekly.json").currentWeek.workforce; if (wf && wf.dataAvailable === false) { console.log("*:busts_in_silhouette: Workforce Changes:*\\n• :warning: Pending connector-backed verification"); } else { console.log("*:busts_in_silhouette: Workforce Changes:*\\n• :large_green_circle: Onboarded: " + wf.totalOnboarding + "\\n• :red_circle: Offboarded: " + wf.offboarding + "\\n• :bar_chart: Net Change: " + (wf.netChange > 0 ? "+" : "") + wf.netChange); }')
 
           curl -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
@@ -106,7 +104,7 @@ jobs:
                   \"type\": \"section\",
                   \"text\": {
                     \"type\": \"mrkdwn\",
-                    \"text\": \"*👥 Workforce Changes:*\\n• 🟢 Onboarded: $((FTE_ON + CONT_ON)) ($FTE_ON FTE + $CONT_ON contractors)\\n• 🔴 Offboarded: $OFFBOARD\"
+                    \"text\": \"$WORKFORCE_TEXT\"
                   }
                 },
                 {

@@ -287,17 +287,21 @@ async function checkWorkforceChanges(weekStart) {
   } catch (error) {
     console.error('Error checking workforce changes from calendar:', error.message);
 
-    // Return empty result on error
+    // Surface unavailability explicitly so downstream reporting doesn't post fake zeros.
     return {
-      onboardedCount: 0,
-      offboardedCount: 0,
-      netChange: 0,
+      onboardedCount: null,
+      offboardedCount: null,
+      netChange: null,
       onboardedPeople: [],
       offboardedPeople: [],
-      onboardingDateLabel: 'Unknown',
-      offboardingDateLabel: 'Unknown',
+      onboardingDateLabel: 'Unavailable',
+      offboardingDateLabel: 'Unavailable',
+      onboardingDate: null,
+      offboardingStartDate: null,
+      offboardingEndDate: null,
       fteContractorSplitSupported: false,
-      splitNote: 'Calendar check failed',
+      splitNote: 'Calendar-backed workforce data unavailable',
+      dataAvailable: false,
       error: error.message
     };
   }

@@ -411,14 +411,14 @@ async function countWorkforceChanges(weekStartDate, label) {
 
   if (calendarData.error) {
     console.warn(`  ⚠️  Calendar check failed: ${calendarData.error}`);
-    console.warn(`  ⚠️  Falling back to zero counts due to calendar unavailability`);
+    console.warn(`  ⚠️  Workforce data will be marked unavailable instead of falling back to zero counts`);
   }
 
   // Log the results with explicit dates
   console.log(`  Calendar-based counts:`);
-  console.log(`    Onboarded (${calendarData.onboardingDateLabel}): ${calendarData.onboardedCount}`);
-  console.log(`    Offboarded (${calendarData.offboardingDateLabel}): ${calendarData.offboardedCount}`);
-  console.log(`    Net change: ${calendarData.netChange > 0 ? '+' : ''}${calendarData.netChange}`);
+  console.log(`    Onboarded (${calendarData.onboardingDateLabel}): ${formatWorkforceValue(calendarData.onboardedCount)}`);
+  console.log(`    Offboarded (${calendarData.offboardingDateLabel}): ${formatWorkforceValue(calendarData.offboardedCount)}`);
+  console.log(`    Net change: ${formatNetChange(calendarData.netChange)}`);
 
   if (calendarData.onboardedPeople.length > 0) {
     console.log(`    Onboarded people: ${calendarData.onboardedPeople.join(', ')}`);
@@ -435,8 +435,8 @@ async function countWorkforceChanges(weekStartDate, label) {
   // Return data in format expected by the rest of the script
   // Note: FTE/contractor breakdown is not supported by calendar alone
   return {
-    fteOnboarding: calendarData.onboardedCount, // Total onboarding (FTE split not available)
-    contractorOnboarding: 0, // Not supported by calendar
+    fteOnboarding: calendarData.dataAvailable === false ? null : calendarData.onboardedCount,
+    contractorOnboarding: calendarData.dataAvailable === false ? null : 0,
     totalOnboarding: calendarData.onboardedCount,
     offboarding: calendarData.offboardedCount,
     netChange: calendarData.netChange,
@@ -445,8 +445,20 @@ async function countWorkforceChanges(weekStartDate, label) {
     offboardingDateLabel: calendarData.offboardingDateLabel,
     onboardedPeople: calendarData.onboardedPeople,
     offboardedPeople: calendarData.offboardedPeople,
-    splitSupported: false // FTE/contractor split not available from calendar
+    splitSupported: false,
+    dataAvailable: calendarData.dataAvailable !== false,
+    splitNote: calendarData.splitNote,
+    error: calendarData.error || null
   };
+}
+
+function formatWorkforceValue(value) {
+  return value === null || value === undefined ? 'Unavailable' : value;
+}
+
+function formatNetChange(value) {
+  if (value === null || value === undefined) return 'Unavailable';
+  return `${value > 0 ? '+' : ''}${value}`;
 }
 
 /**
@@ -1066,22 +1078,22 @@ ${generateTeamCapacitySection(currentMetrics, oooStatus)}
     </tr>
     <tr>
       <td><p>Onboarded</p></td>
-      <td><p>${currentMetrics.workforce?.totalOnboarding || 0} (${currentMetrics.workforce?.onboardingDateLabel || 'N/A'})</p></td>
-      <td><p>${previousMetrics.workforce?.totalOnboarding || 0} (${previousMetrics.workforce?.onboardingDateLabel || 'N/A'})</p></td>
+      <td><p>${formatWorkforceValue(currentMetrics.workforce?.totalOnboarding)} (${currentMetrics.workforce?.onboardingDateLabel || 'N/A'})</p></td>
+      <td><p>${formatWorkforceValue(previousMetrics.workforce?.totalOnboarding)} (${previousMetrics.workforce?.onboardingDateLabel || 'N/A'})</p></td>
     </tr>
     <tr>
       <td><p>Offboarded</p></td>
-      <td><p>${currentMetrics.workforce?.offboarding || 0} (${currentMetrics.workforce?.offboardingDateLabel || 'N/A'})</p></td>
-      <td><p>${previousMetrics.workforce?.offboarding || 0} (${previousMetrics.workforce?.offboardingDateLabel || 'N/A'})</p></td>
+      <td><p>${formatWorkforceValue(currentMetrics.workforce?.offboarding)} (${currentMetrics.workforce?.offboardingDateLabel || 'N/A'})</p></td>
+      <td><p>${formatWorkforceValue(previousMetrics.workforce?.offboarding)} (${previousMetrics.workforce?.offboardingDateLabel || 'N/A'})</p></td>
     </tr>
     <tr>
       <td><p>Net Headcount Change</p></td>
-      <td><p>${currentMetrics.workforce?.netChange > 0 ? '+' : ''}${currentMetrics.workforce?.netChange || 0}</p></td>
-      <td><p>${previousMetrics.workforce?.netChange > 0 ? '+' : ''}${previousMetrics.workforce?.netChange || 0}</p></td>
+      <td><p>${formatNetChange(currentMetrics.workforce?.netChange)}</p></td>
+      <td><p>${formatNetChange(previousMetrics.workforce?.netChange)}</p></td>
     </tr>
   </tbody>
 </table>
-<p><em>FTE/Contractor split: ${currentMetrics.workforce?.splitSupported ? 'Available' : 'Not available from calendar data - use Jira for ticket validation if needed'}</em></p>
+<p><em>FTE/Contractor split: ${currentMetrics.workforce?.splitSupported ? 'Available' : (currentMetrics.workforce?.dataAvailable === false ? 'Workforce data unavailable from automated calendar source this week' : 'Not available from calendar data - use Jira for ticket validation if needed')}</em></p>
 
 ${generateLeadershipInsights(currentMetrics, oooStatus)}
 

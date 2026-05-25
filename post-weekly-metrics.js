@@ -48,6 +48,9 @@ const slaStatus = parseFloat(metrics.overallSlaPercent) >= 95 ? '✅' : '⚠️'
 const csatStatus = parseFloat(metrics.csat.avgScore) >= 4.5 ? '✅' : '⚠️';
 const automationStatus = parseFloat(metrics.automationPercent) >= 5 ? '✅' : '⚠️';
 const backlogStatus = metrics.createdCount <= metrics.resolvedCount ? '✅' : '⚠️';
+const workforceSection = metrics.workforce?.dataAvailable === false
+  ? `👥 *Workforce*\n⚠️ Pending connector-backed verification`
+  : `👥 *Workforce*\n➕ Onboarded: ${metrics.workforce.totalOnboarding}\n➖ Offboarded: ${metrics.workforce.offboarding}\n📊 Net: ${metrics.workforce.netChange > 0 ? '🟢 +' : metrics.workforce.netChange < 0 ? '🔴 ' : '⚪️ '}${metrics.workforce.netChange}`;
 
 const message = `📊 *IT Ops Weekly Metrics*
 📅 ${metrics.period}
@@ -69,10 +72,7 @@ ${metrics.createdCount > metrics.resolvedCount ? '⚠️ Backlog growing' : '✅
 ${automationStatus} Rate: *${metrics.automationPercent}%* (Target: 5%)
 ⚡ Breaches: ${metrics.slaBreachCount} tickets
 
-👥 *Workforce*
-➕ Onboarded: ${metrics.workforce.fteOnboarding} FTE + ${metrics.workforce.contractorOnboarding} contractors
-➖ Offboarded: ${metrics.workforce.offboarding}
-📊 Net: ${metrics.workforce.netChange > 0 ? '🟢 +' : metrics.workforce.netChange < 0 ? '🔴 ' : '⚪️ '}${metrics.workforce.netChange}
+${workforceSection}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

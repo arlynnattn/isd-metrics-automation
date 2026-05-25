@@ -246,7 +246,7 @@ ${confidenceNote}
   <li><strong>SLA Performance:</strong> ${currentMetrics.overallSlaPercent}% SLA achievement (${slaChange > 0 ? '+' : ''}${slaChange.toFixed(1)}pp WoW) - ${slaComparison.emoji} ${slaComparison.description}</li>
   <li><strong>Customer Satisfaction:</strong> CSAT ${currentMetrics.csat.avgScore}/5.0 from ${currentMetrics.csat.totalResponses} reviews - ${csatComparison.emoji} ${csatComparison.description}</li>
   <li><strong>Automation:</strong> ${currentMetrics.automationPercent}% of tickets handled without human intervention - ${automationComparison.emoji} ${automationComparison.description}</li>
-  <li><strong>Workforce Impact:</strong> ${currentMetrics.workforce?.totalOnboarding || 0} onboarded (${currentMetrics.workforce?.fteOnboarding || 0} FTE, ${currentMetrics.workforce?.contractorOnboarding || 0} contractors), ${currentMetrics.workforce?.offboarding || 0} offboarded</li>
+  <li><strong>Workforce Impact:</strong> ${currentMetrics.workforce?.dataAvailable === false ? 'Automated workforce data unavailable this week; use connector-backed Slack verification for final counts' : `${currentMetrics.workforce?.totalOnboarding || 0} onboarded, ${currentMetrics.workforce?.offboarding || 0} offboarded`}</li>
 </ul>
 
 ${adjustedMetricsData.hasAdjustedMetrics ? '<p><strong>📊 Metrics Interpretation:</strong> Raw metrics show elevated time values due to a known anomaly. Adjusted metrics (excluding anomaly-affected tickets) indicate service performance remained within expected ranges. See "Raw vs Adjusted Metrics" section above.</p>' : ''}
@@ -287,7 +287,7 @@ ${adjustedMetricsData.hasAdjustedMetrics ? '<p><em>Note: Time metrics use adjust
 
 <h3>Workforce Risks</h3>
 <ul>
-  <li><strong>Net Headcount:</strong> ${currentMetrics.workforce?.netChange > 0 ? '+' : ''}${currentMetrics.workforce?.netChange || 0} this week</li>
+  <li><strong>Net Headcount:</strong> ${currentMetrics.workforce?.dataAvailable === false ? 'Unavailable from automated calendar source this week' : `${currentMetrics.workforce?.netChange > 0 ? '+' : ''}${currentMetrics.workforce?.netChange || 0} this week`}</li>
   <li><strong>Team Availability:</strong> Review engineer workload distribution in metrics dashboard</li>
 </ul>
 
@@ -311,7 +311,7 @@ ${narrativeConfidence.level !== 'confident' ? '<p><em>Note: Time-based metrics a
 
 <h3>Volume Drivers</h3>
 <ul>
-  <li><strong>Onboarding:</strong> ${currentMetrics.workforce?.totalOnboarding || 0} new employees this week driving access request volume</li>
+  <li><strong>Onboarding:</strong> ${currentMetrics.workforce?.dataAvailable === false ? 'Automated workforce data unavailable this week' : `${currentMetrics.workforce?.totalOnboarding || 0} new employees this week driving access request volume`}</li>
   <li><strong>Department Concentration:</strong> ${currentMetrics.departmentBreakdown[0]?.[0] || 'N/A'} represents highest demand - review for automation opportunities</li>
 </ul>
 
