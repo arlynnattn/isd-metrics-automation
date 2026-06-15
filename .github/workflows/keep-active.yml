@@ -2,8 +2,8 @@ name: Keep Repo Active
 
 on:
   schedule:
-    # Run daily at 2:00 AM UTC to keep repo active for scheduled workflows
-    - cron: '0 2 * * *'
+    # Run daily at 2:11 AM UTC to keep repo activity off the top-of-hour scheduler hotspot.
+    - cron: '11 2 * * *'
   workflow_dispatch: # Allow manual trigger
 
 permissions:

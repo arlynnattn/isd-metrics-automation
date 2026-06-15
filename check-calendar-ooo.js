@@ -267,6 +267,7 @@ async function checkWorkforceChanges(weekStart) {
     const netChange = onboardedCount - offboardedCount;
 
     return {
+      available: true,
       onboardedCount,
       offboardedCount,
       netChange,
@@ -289,6 +290,7 @@ async function checkWorkforceChanges(weekStart) {
 
     // Return empty result on error
     return {
+      available: false,
       onboardedCount: 0,
       offboardedCount: 0,
       netChange: 0,

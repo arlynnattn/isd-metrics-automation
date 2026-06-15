@@ -2,8 +2,9 @@ name: Update ISD Metrics Weekly
 
 on:
   schedule:
-    # Run every Monday at 1:00 PM UTC (9:00 AM ET)
-    - cron: '0 13 * * 1'
+    # Run every Monday at 1:17 PM UTC (9:17 AM ET during EDT).
+    # Avoid minute 0 because GitHub may delay or drop scheduled workflows at the top of the hour.
+    - cron: '17 13 * * 1'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
@@ -41,6 +42,11 @@ jobs:
           echo "📊 Step 1/2: Updating ISD Weekly Metrics Dashboard..."
           node update-confluence-weekly.js
 
+      - name: Validate workforce metrics availability
+        if: success()
+        run: |
+          node -e 'const w=require("./metrics-cache-weekly.json").currentWeek.workforce || {}; if (w.available === false) { console.error("❌ Workforce data unavailable for this run. Blocking downstream publish so Slack does not post misleading zero counts."); console.error(`Reason: ${w.error || "Jira workforce ticket data could not be read"}`); process.exit(1); } console.log("✓ Workforce metrics available for downstream publish");'
+
       - name: Update Weekly Analyst Report
         if: success()
         env:
@@ -66,9 +72,7 @@ jobs:
           CSAT_COUNT=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.csat.totalResponses)")
           AUTO_PCT=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.automationPercent)")
           AUTO_COUNT=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.automatedCount)")
-          FTE_ON=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.workforce.fteOnboarding)")
-          CONT_ON=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.workforce.contractorOnboarding)")
-          OFFBOARD=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.workforce.offboarding)")
+          WORKFORCE_TEXT=$(node -e 'const w=require("./metrics-cache-weekly.json").currentWeek.workforce || {}; if (w.available === false) { console.log("*👥 Workforce Changes:*\\n• ⚠️ Workforce data unavailable for this run\\n• ℹ️ Jira workforce source needs attention before publish"); } else if (w.splitSupported) { const fte=w.fteOnboarding ?? 0; const contractors=w.contractorOnboarding ?? 0; const total=fte+contractors; console.log(`*👥 Workforce Changes:*\\n• 🟢 Onboarded: ${total} (${fte} FTE + ${contractors} contractors)\\n• 🔴 Offboarded: ${w.offboarding ?? 0}`); } else { console.log(`*👥 Workforce Changes:*\\n• 🟢 Onboarded: ${w.totalOnboarding ?? 0}\\n• 🔴 Offboarded: ${w.offboarding ?? 0}\\n• ℹ️ FTE/contractor split unavailable from Jira source`); }')
 
           curl -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
@@ -106,7 +110,7 @@ jobs:
                   \"type\": \"section\",
                   \"text\": {
                     \"type\": \"mrkdwn\",
-                    \"text\": \"*👥 Workforce Changes:*\\n• 🟢 Onboarded: $((FTE_ON + CONT_ON)) ($FTE_ON FTE + $CONT_ON contractors)\\n• 🔴 Offboarded: $OFFBOARD\"
+                    \"text\": \"$WORKFORCE_TEXT\"
                   }
                 },
                 {

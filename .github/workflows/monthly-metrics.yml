@@ -2,8 +2,9 @@ name: Update ISD Metrics Monthly
 
 on:
   schedule:
-    # Run on 1st of every month at 1:00 PM UTC (9:00 AM ET)
-    - cron: '0 13 1 * *'
+    # Run on 1st of every month at 1:23 PM UTC (9:23 AM ET during EDT).
+    # Stagger away from the weekly workflow and the top of the hour to reduce scheduler delays.
+    - cron: '23 13 1 * *'
   workflow_dispatch:
     inputs:
       report_month:
