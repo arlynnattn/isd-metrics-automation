@@ -306,38 +306,72 @@ async function buildServiceCatalogCache(issues) {
  */
 function getWeekRanges() {
   const now = new Date();
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
 
-  // Calculate actual date ranges for Slack/CSAT
-  const weekAgo = new Date(now);
-  weekAgo.setDate(now.getDate() - 7);
-  const twoWeeksAgo = new Date(now);
-  twoWeeksAgo.setDate(now.getDate() - 14);
+  const day = today.getDay();
+  let daysSinceCompletedFriday;
+  if (day === 6) {
+    daysSinceCompletedFriday = 1; // Saturday -> yesterday
+  } else if (day === 0) {
+    daysSinceCompletedFriday = 2; // Sunday -> two days ago
+  } else {
+    daysSinceCompletedFriday = day + 2; // Mon-Fri -> prior week's Friday
+  }
 
-  const options = { month: 'short', day: 'numeric' };
-  const currentLabel = `Last 7 days (${weekAgo.toLocaleDateString('en-US', options)} - ${now.toLocaleDateString('en-US', options)}, ${now.getFullYear()})`;
-  const previousLabel = `Previous 7 days (${twoWeeksAgo.toLocaleDateString('en-US', options)} - ${weekAgo.toLocaleDateString('en-US', options)}, ${weekAgo.getFullYear()})`;
-  const workforceOptions = { month: 'short', day: 'numeric', year: 'numeric' };
-  const currentWorkforceLabel = `${weekAgo.toLocaleDateString('en-US', workforceOptions)} - ${now.toLocaleDateString('en-US', workforceOptions)}`;
-  const previousWorkforceLabel = `${twoWeeksAgo.toLocaleDateString('en-US', workforceOptions)} - ${weekAgo.toLocaleDateString('en-US', workforceOptions)}`;
+  const currentFriday = new Date(today);
+  currentFriday.setDate(today.getDate() - daysSinceCompletedFriday);
+  currentFriday.setHours(23, 59, 59, 999);
+
+  const currentMonday = new Date(currentFriday);
+  currentMonday.setDate(currentFriday.getDate() - 4);
+  currentMonday.setHours(0, 0, 0, 0);
+
+  const previousFriday = new Date(currentFriday);
+  previousFriday.setDate(currentFriday.getDate() - 7);
+  previousFriday.setHours(23, 59, 59, 999);
+
+  const previousMonday = new Date(currentMonday);
+  previousMonday.setDate(currentMonday.getDate() - 7);
+  previousMonday.setHours(0, 0, 0, 0);
+
+  const formatJqlDate = (date) => date.toISOString().split('T')[0];
+  const formatWeekLabel = (startDate, endDate) => {
+    const startMonth = startDate.toLocaleDateString('en-US', { month: 'short' });
+    const endMonth = endDate.toLocaleDateString('en-US', { month: 'short' });
+    const startDay = startDate.getDate();
+    const endDay = endDate.getDate();
+    const year = endDate.getFullYear();
+    return startMonth === endMonth
+      ? `${startMonth} ${startDay} - ${endDay}, ${year}`
+      : `${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
+  };
+
+  const currentLabel = formatWeekLabel(currentMonday, currentFriday);
+  const previousLabel = formatWeekLabel(previousMonday, previousFriday);
+
+  const currentResolvedFilterRange = `resolutiondate >= "${formatJqlDate(currentMonday)}" AND resolutiondate <= "${formatJqlDate(currentFriday)}"`;
+  const previousResolvedFilterRange = `resolutiondate >= "${formatJqlDate(previousMonday)}" AND resolutiondate <= "${formatJqlDate(previousFriday)}"`;
+  const currentCreatedFilterRange = `created >= "${formatJqlDate(currentMonday)}" AND created <= "${formatJqlDate(currentFriday)}"`;
+  const previousCreatedFilterRange = `created >= "${formatJqlDate(previousMonday)}" AND created <= "${formatJqlDate(previousFriday)}"`;
 
   return {
     currentWeek: {
-      jqlFilter: '-7d', // Use Jira's -7d syntax
-      resolvedFilterRange: 'resolutiondate >= -7d',
-      start: weekAgo, // Actual date for Slack/CSAT
-      end: now,
+      resolvedFilterRange: currentResolvedFilterRange,
+      createdFilterRange: currentCreatedFilterRange,
+      start: currentMonday,
+      end: currentFriday,
       label: currentLabel,
-      workforceLabel: currentWorkforceLabel,
+      workforceLabel: currentLabel,
       shortLabel: 'This Week'
     },
     previousWeek: {
-      jqlFilter: '-14d', // Starting point for previous week
-      jqlFilterRange: 'resolutiondate >= -14d AND resolutiondate < -7d', // Full range filter for resolved
-      createdFilterRange: 'created >= -14d AND created < -7d', // Full range filter for created
-      start: twoWeeksAgo, // Actual date for Slack/CSAT
-      end: weekAgo,
+      resolvedFilterRange: previousResolvedFilterRange,
+      createdFilterRange: previousCreatedFilterRange,
+      start: previousMonday,
+      end: previousFriday,
       label: previousLabel,
-      workforceLabel: previousWorkforceLabel,
+      workforceLabel: previousLabel,
       shortLabel: 'Last Week'
     }
   };
@@ -370,7 +404,7 @@ async function fetchIssueCount(jql) {
  * Count created tickets using JQL filter
  */
 async function countCreatedTickets(jqlFilter, label, isRange = false) {
-  // If isRange is true, jqlFilter already contains the full condition (e.g., "created >= -14d AND created < -7d")
+  // If isRange is true, jqlFilter already contains the full date condition.
   // Otherwise, it's a simple filter like "-7d"
   const jql = isRange
     ? `project = ISD AND ${jqlFilter}`
@@ -1315,7 +1349,7 @@ async function main() {
 
     // Fetch current week resolved issues first to build cache
     const resolvedStatuses = '"13. Done", Canceled, Closed, Completed, Declined, Resolved';
-    const currentJQL = `project = ISD AND resolutiondate >= ${weeks.currentWeek.jqlFilter} AND status in (${resolvedStatuses})`;
+    const currentJQL = `project = ISD AND ${weeks.currentWeek.resolvedFilterRange} AND status in (${resolvedStatuses})`;
     console.log('\nFetching current week issues for cache building...');
     const path = `/rest/api/3/search/jql?jql=${encodeURIComponent(currentJQL)}&maxResults=1000&fields=${FIELD_SERVICE_CATALOG}`;
     const response = await makeRequest(JIRA_BASE_URL, path, 'GET', null, {
@@ -1326,15 +1360,15 @@ async function main() {
     const serviceCatalogCache = await buildServiceCatalogCache(response.issues);
 
     // Calculate metrics for both weeks using resolutiondate + status filter
-    const currentResolvedJQL = `project = ISD AND resolutiondate >= ${weeks.currentWeek.jqlFilter} AND status in (${resolvedStatuses})`;
-    const previousResolvedJQL = `project = ISD AND ${weeks.previousWeek.jqlFilterRange} AND status in (${resolvedStatuses})`;
+    const currentResolvedJQL = `project = ISD AND ${weeks.currentWeek.resolvedFilterRange} AND status in (${resolvedStatuses})`;
+    const previousResolvedJQL = `project = ISD AND ${weeks.previousWeek.resolvedFilterRange} AND status in (${resolvedStatuses})`;
 
     const currentMetrics = await calculateMonthlyMetrics(currentResolvedJQL, weeks.currentWeek.label, serviceCatalogCache);
     const previousMetrics = await calculateMonthlyMetrics(previousResolvedJQL, weeks.previousWeek.label, serviceCatalogCache);
 
     // Count created tickets for both weeks
     console.log('\nCounting created tickets...');
-    const currentCreated = await countCreatedTickets(weeks.currentWeek.jqlFilter, weeks.currentWeek.label, false);
+    const currentCreated = await countCreatedTickets(weeks.currentWeek.createdFilterRange, weeks.currentWeek.label, true);
     const previousCreated = await countCreatedTickets(weeks.previousWeek.createdFilterRange, weeks.previousWeek.label, true);
     console.log(`Current week created: ${currentCreated}, Previous week created: ${previousCreated}`);
 
@@ -1358,7 +1392,7 @@ async function main() {
     // Count workforce changes from Jira workforce tickets
     console.log('\nCounting workforce changes from Jira resolved tickets...');
     const currentWorkforce = await countWorkforceChanges(weeks.currentWeek.resolvedFilterRange, weeks.currentWeek.label, weeks.currentWeek.workforceLabel);
-    const previousWorkforce = await countWorkforceChanges(weeks.previousWeek.jqlFilterRange, weeks.previousWeek.label, weeks.previousWeek.workforceLabel);
+    const previousWorkforce = await countWorkforceChanges(weeks.previousWeek.resolvedFilterRange, weeks.previousWeek.label, weeks.previousWeek.workforceLabel);
     console.log(`Current week (${currentWorkforce.onboardingDateLabel}): ${currentWorkforce.totalOnboarding} onboarded`);
     console.log(`Current week (${currentWorkforce.offboardingDateLabel}): ${currentWorkforce.offboarding} offboarded`);
     console.log(`Previous week (${previousWorkforce.onboardingDateLabel}): ${previousWorkforce.totalOnboarding} onboarded`);
