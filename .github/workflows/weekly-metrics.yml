@@ -62,13 +62,22 @@ jobs:
           echo "📊 Step 1/2: Updating ISD Weekly Metrics Dashboard..."
           node update-confluence-weekly.js
 
+      - name: Update Weekly Top Apps Running Report
+        if: success()
+        env:
+          ATLASSIAN_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
+          ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
+        run: |
+          echo "🧩 Step 2/3: Updating Weekly Top Apps Running Report..."
+          node generate-weekly-top-apps-report.js
+
       - name: Update Weekly Analyst Report
         if: success()
         env:
           ATLASSIAN_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
           ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
         run: |
-          echo "📝 Step 2/2: Updating Weekly Analyst Report..."
+          echo "📝 Step 3/3: Updating Weekly Analyst Report..."
           node generate-weekly-analyst-report.js
 
       - name: Post to Slack
