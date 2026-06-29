@@ -380,10 +380,10 @@ async function countCreatedTickets(jqlFilter, label, isRange = false) {
 }
 
 /**
- * Count workforce changes using Google Calendar as source of truth
- * Uses "First Day" events for onboarding (Monday cohort only)
- * Uses "Last Day" events for offboarding (Monday-Sunday range)
- * Jira is only used for ticket coverage validation, not for counting
+ * Count workforce changes using the repo's Google Calendar integration.
+ * This is useful for internal dashboards, but it is not the same as the
+ * Codex Google Calendar connector on the user's primary calendar, so Slack
+ * posts should not present these values as connector-backed truth.
  */
 async function countWorkforceChanges(weekStartDate, label) {
   console.log(`  Counting workforce changes for ${label}`);
@@ -393,7 +393,7 @@ async function countWorkforceChanges(weekStartDate, label) {
 
   if (calendarData.error) {
     console.warn(`  ⚠️  Calendar check failed: ${calendarData.error}`);
-    console.warn(`  ⚠️  Falling back to zero counts due to calendar unavailability`);
+    console.warn(`  ⚠️  Workforce counts are unavailable for verified Slack reporting`);
   }
 
   // Log the results with explicit dates
@@ -427,7 +427,11 @@ async function countWorkforceChanges(weekStartDate, label) {
     offboardingDateLabel: calendarData.offboardingDateLabel,
     onboardedPeople: calendarData.onboardedPeople,
     offboardedPeople: calendarData.offboardedPeople,
-    splitSupported: false // FTE/contractor split not available from calendar
+    splitSupported: false, // FTE/contractor split not available from calendar
+    available: !calendarData.error,
+    pendingVerification: true,
+    connectorBacked: false,
+    source: calendarData.error ? 'calendar-unavailable' : 'service-account-calendar'
   };
 }
 

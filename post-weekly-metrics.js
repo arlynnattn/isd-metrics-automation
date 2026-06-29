@@ -49,6 +49,21 @@ const csatStatus = parseFloat(metrics.csat.avgScore) >= 4.5 ? '✅' : '⚠️';
 const automationStatus = parseFloat(metrics.automationPercent) >= 5 ? '✅' : '⚠️';
 const backlogStatus = metrics.createdCount <= metrics.resolvedCount ? '✅' : '⚠️';
 
+function formatWorkforceSection(workforce = {}) {
+  if (workforce.connectorBacked !== true) {
+    return '⚠️ Pending connector-backed verification';
+  }
+
+  const netPrefix = workforce.netChange > 0 ? '+' : '';
+  const netIndicator = workforce.netChange > 0 ? '🟢 ' : workforce.netChange < 0 ? '🔴 ' : '⚪️ ';
+
+  return [
+    `Onboarded: ${workforce.totalOnboarding}`,
+    `Offboarded: ${workforce.offboarding}`,
+    `Net: ${netIndicator}${netPrefix}${workforce.netChange}`
+  ].join('\n');
+}
+
 const message = `📊 *IT Ops Weekly Metrics*
 📅 ${metrics.period}
 
@@ -70,9 +85,7 @@ ${automationStatus} Rate: *${metrics.automationPercent}%* (Target: 5%)
 ⚡ Breaches: ${metrics.slaBreachCount} tickets
 
 👥 *Workforce*
-➕ Onboarded: ${metrics.workforce.fteOnboarding} FTE + ${metrics.workforce.contractorOnboarding} contractors
-➖ Offboarded: ${metrics.workforce.offboarding}
-📊 Net: ${metrics.workforce.netChange > 0 ? '🟢 +' : metrics.workforce.netChange < 0 ? '🔴 ' : '⚪️ '}${metrics.workforce.netChange}
+${formatWorkforceSection(metrics.workforce)}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

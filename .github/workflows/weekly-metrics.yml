@@ -4,7 +4,13 @@ on:
   schedule:
     # Run every Monday at 1:00 PM UTC (9:00 AM ET)
     - cron: '0 13 * * 1'
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      post_to_slack:
+        description: 'Post the weekly summary to Slack after the report finishes'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   update-metrics:
@@ -51,7 +57,7 @@ jobs:
           node generate-weekly-analyst-report.js
 
       - name: Post to Slack
-        if: success()
+        if: success() && (github.event_name == 'schedule' || inputs.post_to_slack == true)
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
@@ -66,9 +72,7 @@ jobs:
           CSAT_COUNT=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.csat.totalResponses)")
           AUTO_PCT=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.automationPercent)")
           AUTO_COUNT=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.automatedCount)")
-          FTE_ON=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.workforce.fteOnboarding)")
-          CONT_ON=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.workforce.contractorOnboarding)")
-          OFFBOARD=$(node -e "console.log(require('./metrics-cache-weekly.json').currentWeek.workforce.offboarding)")
+          WORKFORCE_TEXT=$(node -e "const wf=require('./metrics-cache-weekly.json').currentWeek.workforce || {}; const text = wf.connectorBacked === true ? ['• 🟢 Onboarded: ' + wf.totalOnboarding, '• 🔴 Offboarded: ' + wf.offboarding, '• ' + (wf.netChange > 0 ? '🟢 Net: +' : wf.netChange < 0 ? '🔴 Net: ' : '⚪️ Net: ') + wf.netChange].join('\\n') : '• ⚠️ Pending connector-backed verification'; console.log(JSON.stringify(text).slice(1,-1));")
 
           curl -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
@@ -106,7 +110,7 @@ jobs:
                   \"type\": \"section\",
                   \"text\": {
                     \"type\": \"mrkdwn\",
-                    \"text\": \"*👥 Workforce Changes:*\\n• 🟢 Onboarded: $((FTE_ON + CONT_ON)) ($FTE_ON FTE + $CONT_ON contractors)\\n• 🔴 Offboarded: $OFFBOARD\"
+                    \"text\": \"*👥 Workforce Changes:*\\n$WORKFORCE_TEXT\"
                   }
                 },
                 {
