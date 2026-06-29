@@ -1,0 +1,189 @@
+{
+  "generatedAt": "2026-06-29T00:00:00.000Z",
+  "reportWindow": {
+    "startDate": "2026-01-01",
+    "endDate": "2026-06-29"
+  },
+  "methodology": [
+    "This local preview is using a placeholder dataset so the page renders in the repo.",
+    "Run `node generate-app-support-burden-report.js` with Atlassian credentials, or run the GitHub workflow once it is available from the default branch, to populate real Jan 2026 to present counts.",
+    "The current page structure and recommendation model are ready for live Jira-backed data."
+  ],
+  "apps": [
+    {
+      "id": "gong",
+      "label": "Gong",
+      "totalTickets": 0,
+      "monthlySeries": [
+        { "monthKey": "2026-01", "label": "Jan 2026", "count": 0 },
+        { "monthKey": "2026-02", "label": "Feb 2026", "count": 0 },
+        { "monthKey": "2026-03", "label": "Mar 2026", "count": 0 },
+        { "monthKey": "2026-04", "label": "Apr 2026", "count": 0 },
+        { "monthKey": "2026-05", "label": "May 2026", "count": 0 },
+        { "monthKey": "2026-06", "label": "Jun 2026", "count": 0 }
+      ],
+      "departmentBreakdown": [],
+      "themes": [
+        {
+          "id": "access-request",
+          "label": "Basic access request",
+          "count": 0,
+          "examples": [
+            {
+              "key": "ISD-41667",
+              "summary": "Gong access to review relevant customer requests/feedback",
+              "resolutionDate": "2026-06-26T20:08:41.880-0400",
+              "department": "Engineering",
+              "requestType": "Need Access to an application?",
+              "webUrl": "https://attentivemobile.atlassian.net/browse/ISD-41667"
+            }
+          ]
+        }
+      ],
+      "recommendations": [
+        "Use role-based default access or request presets for teams that repeatedly need Gong visibility.",
+        "Separate standard Gong access from edge cases so IT does not have to triage every routine request by hand."
+      ],
+      "recentExamples": [
+        {
+          "key": "ISD-41667",
+          "summary": "Gong access to review relevant customer requests/feedback",
+          "resolutionDate": "2026-06-26T20:08:41.880-0400",
+          "department": "Engineering",
+          "requestType": "Need Access to an application?",
+          "webUrl": "https://attentivemobile.atlassian.net/browse/ISD-41667"
+        },
+        {
+          "key": "ISD-41541",
+          "summary": "Gong access for 2 new interns",
+          "resolutionDate": "2026-06-22T15:00:24.605-0400",
+          "department": "IT Automation",
+          "requestType": "Need Access to an application?",
+          "webUrl": "https://attentivemobile.atlassian.net/browse/ISD-41541"
+        }
+      ]
+    },
+    {
+      "id": "zapier",
+      "label": "Zapier",
+      "totalTickets": 0,
+      "monthlySeries": [
+        { "monthKey": "2026-01", "label": "Jan 2026", "count": 0 },
+        { "monthKey": "2026-02", "label": "Feb 2026", "count": 0 },
+        { "monthKey": "2026-03", "label": "Mar 2026", "count": 0 },
+        { "monthKey": "2026-04", "label": "Apr 2026", "count": 0 },
+        { "monthKey": "2026-05", "label": "May 2026", "count": 0 },
+        { "monthKey": "2026-06", "label": "Jun 2026", "count": 0 }
+      ],
+      "departmentBreakdown": [],
+      "themes": [
+        {
+          "id": "automation",
+          "label": "Automation / workflow setup",
+          "count": 0,
+          "examples": [
+            {
+              "key": "ISD-41387",
+              "summary": "I need access to Zapier for some automations",
+              "resolutionDate": "2026-06-10T11:19:30.289-0400",
+              "department": "Engineering",
+              "requestType": "Need Access to an application?",
+              "webUrl": "https://attentivemobile.atlassian.net/browse/ISD-41387"
+            }
+          ]
+        }
+      ],
+      "recommendations": [
+        "Create a standard intake path for Zapier use cases so approvals and least-privilege choices are consistent.",
+        "Bundle common Zapier access with the teams that repeatedly build automations instead of handling one-off requests."
+      ],
+      "recentExamples": [
+        {
+          "key": "ISD-41590",
+          "summary": "Requesting Zapier access",
+          "resolutionDate": "2026-06-23T15:01:09.989-0400",
+          "department": "IT Automation",
+          "requestType": "Need Access to an application?",
+          "webUrl": "https://attentivemobile.atlassian.net/browse/ISD-41590"
+        },
+        {
+          "key": "ISD-38058",
+          "summary": "Request for Zapier",
+          "resolutionDate": "2026-01-13T14:07:37.206-0500",
+          "department": "Engineering",
+          "requestType": "Need Access to an application?",
+          "webUrl": "https://attentivemobile.atlassian.net/browse/ISD-38058"
+        }
+      ]
+    },
+    {
+      "id": "attentive-ui",
+      "label": "Attentive UI",
+      "totalTickets": 0,
+      "monthlySeries": [
+        { "monthKey": "2026-01", "label": "Jan 2026", "count": 0 },
+        { "monthKey": "2026-02", "label": "Feb 2026", "count": 0 },
+        { "monthKey": "2026-03", "label": "Mar 2026", "count": 0 },
+        { "monthKey": "2026-04", "label": "Apr 2026", "count": 0 },
+        { "monthKey": "2026-05", "label": "May 2026", "count": 0 },
+        { "monthKey": "2026-06", "label": "Jun 2026", "count": 0 }
+      ],
+      "departmentBreakdown": [],
+      "themes": [
+        {
+          "id": "environment-access",
+          "label": "Environment or role-specific access",
+          "count": 0,
+          "examples": [
+            {
+              "key": "ISD-40786",
+              "summary": "Need new account groups in staging",
+              "resolutionDate": "2026-06-23T16:44:22.557-0400",
+              "department": "Engineering",
+              "requestType": "Need Access to an application?",
+              "webUrl": "https://attentivemobile.atlassian.net/browse/ISD-40786"
+            }
+          ]
+        },
+        {
+          "id": "auth-reset",
+          "label": "Auth / MFA reset",
+          "count": 0,
+          "examples": [
+            {
+              "key": "ISD-41400",
+              "summary": "Finger Print Set Up Needed for Attentive UI Company Accounts",
+              "resolutionDate": "2026-06-11T16:41:28.485-0400",
+              "department": "Customer Success",
+              "requestType": "Not sure what category fits? Send us a General Support request here!",
+              "webUrl": "https://attentivemobile.atlassian.net/browse/ISD-41400"
+            }
+          ]
+        }
+      ],
+      "recommendations": [
+        "Publish explicit role-to-group mappings for staging, prod, admin, and superuser access so users are not guessing which permission they need.",
+        "Document a self-serve path for Attentive UI MFA and FIDO recovery to reduce reset tickets.",
+        "Separate environment access, auth recovery, and general UI troubleshooting into distinct request paths."
+      ],
+      "recentExamples": [
+        {
+          "key": "ISD-41565",
+          "summary": "Need Admin Center access in the Attentive UI",
+          "resolutionDate": "2026-06-22T15:30:15.457-0400",
+          "department": "Customer Success",
+          "requestType": "Need Access to an application?",
+          "webUrl": "https://attentivemobile.atlassian.net/browse/ISD-41565"
+        },
+        {
+          "key": "ISD-41558",
+          "summary": "Reset Okta, Okta Device Trust & Attentive UI FIDO keys",
+          "resolutionDate": "2026-06-22T14:38:10.235-0400",
+          "department": "Business Operations",
+          "requestType": "Unknown",
+          "webUrl": "https://attentivemobile.atlassian.net/browse/ISD-41558"
+        }
+      ]
+    }
+  ]
+}
