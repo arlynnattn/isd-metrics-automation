@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>App Support Burden Report</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">ISD Support Burden</p>
+          <h1>Gong, Zapier, and Attentive UI from January 2026 to present</h1>
+          <p class="hero-text">
+            This view turns raw Jira volume into a more useful question: what people are repeatedly asking for, which departments generate that load, and which changes are most likely to reduce ticket burden.
+          </p>
+        </div>
+        <div class="hero-meta" id="report-meta"></div>
+      </section>
+
+      <section class="methodology">
+        <h2>How this report works</h2>
+        <ul id="methodology-list"></ul>
+      </section>
+
+      <section class="app-grid" id="app-grid"></section>
+    </main>
+
+    <template id="app-template">
+      <article class="app-card">
+        <div class="app-header">
+          <div>
+            <p class="app-kicker"></p>
+            <h2 class="app-title"></h2>
+          </div>
+          <div class="stat-badge">
+            <span class="stat-value"></span>
+            <span class="stat-label">tickets</span>
+          </div>
+        </div>
+
+        <section class="chart-section">
+          <div class="section-header">
+            <h3>Trend</h3>
+            <p>Monthly resolved tickets</p>
+          </div>
+          <div class="chart-bars"></div>
+        </section>
+
+        <section class="two-column">
+          <div>
+            <div class="section-header">
+              <h3>What users are asking for</h3>
+              <p>Top recurring themes</p>
+            </div>
+            <div class="theme-list"></div>
+          </div>
+
+          <div>
+            <div class="section-header">
+              <h3>Where the demand comes from</h3>
+              <p>Departments with the most tickets</p>
+            </div>
+            <div class="department-list"></div>
+          </div>
+        </section>
+
+        <section class="recommendations">
+          <div class="section-header">
+            <h3>What would move the needle</h3>
+            <p>Targeted actions based on the current mix</p>
+          </div>
+          <ul class="recommendation-list"></ul>
+        </section>
+
+        <section class="examples">
+          <div class="section-header">
+            <h3>Recent examples</h3>
+            <p>Concrete tickets behind the trend</p>
+          </div>
+          <div class="example-list"></div>
+        </section>
+      </article>
+    </template>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>
