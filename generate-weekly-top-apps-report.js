@@ -15,6 +15,7 @@ const CONFLUENCE_SPACE_KEY = 'ISD';
 const ASSETS_WORKSPACE_ID = '0e0847de-b6ef-45db-b74f-45e404e34d0c';
 
 const FIELD_SERVICE_CATALOG = 'customfield_14446';
+const FIELD_EMPLOYEE_DEPT = 'customfield_12617';
 const FIELD_REQUEST_TYPE = 'customfield_10021';
 const HISTORY_START_MONDAY = '2026-01-05';
 const RESOLVED_STATUSES = '"13. Done", Canceled, Closed, Completed, Declined, Resolved';
@@ -164,7 +165,7 @@ async function buildServiceCatalogCache(issues) {
 }
 
 async function fetchHistoricalIssues(startMonday, endSunday) {
-  const fields = ['resolutiondate', 'issuetype', FIELD_REQUEST_TYPE, FIELD_SERVICE_CATALOG];
+  const fields = ['resolutiondate', 'issuetype', FIELD_REQUEST_TYPE, FIELD_SERVICE_CATALOG, FIELD_EMPLOYEE_DEPT];
   const jql = `project = ISD AND resolutiondate >= "${formatDateOnlyUtc(startMonday)}" AND resolutiondate <= "${formatDateOnlyUtc(endSunday)}" AND status in (${RESOLVED_STATUSES})`;
 
   let allIssues = [];
@@ -205,7 +206,8 @@ function initWeeklyBucket(monday) {
     weekStart: monday,
     weekEnd: getSundayUtc(monday),
     totalAccessRequests: 0,
-    appCounts: {}
+    appCounts: {},
+    departmentCounts: {}
   };
 }
 
@@ -246,6 +248,9 @@ function aggregateWeeklyData(issues, serviceCatalogCache, startMonday, lastCompl
 
     bucket.totalAccessRequests++;
 
+    const department = issue.fields[FIELD_EMPLOYEE_DEPT] || 'Unknown';
+    bucket.departmentCounts[department] = (bucket.departmentCounts[department] || 0) + 1;
+
     const serviceCatalog = issue.fields[FIELD_SERVICE_CATALOG];
     if (!Array.isArray(serviceCatalog)) {
       continue;
@@ -265,16 +270,19 @@ function aggregateWeeklyData(issues, serviceCatalogCache, startMonday, lastCompl
     ...bucket,
     topApps: Object.entries(bucket.appCounts)
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 10),
+    topDepartments: Object.entries(bucket.departmentCounts)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .slice(0, 10)
   }));
 }
 
-function buildCumulativeLeaderboard(weeklyRows) {
+function buildCumulativeLeaderboard(weeklyRows, key) {
   const totals = new Map();
 
   for (const row of weeklyRows) {
-    for (const [app, count] of Object.entries(row.appCounts || {})) {
-      totals.set(app, (totals.get(app) || 0) + count);
+    for (const [name, count] of Object.entries(row[key] || {})) {
+      totals.set(name, (totals.get(name) || 0) + count);
     }
   }
 
@@ -323,13 +331,26 @@ function renderWeeklyRows(weeklyRows) {
   `).join('');
 }
 
+function renderWeeklyDepartmentRows(weeklyRows) {
+  return weeklyRows.map((row) => `
+    <tr>
+      <td><p>${formatEtDate(row.weekStart, { month: 'short', day: 'numeric' })} - ${formatEtDate(row.weekEnd, { month: 'short', day: 'numeric', year: 'numeric' })}</p></td>
+      <td><p>${row.totalAccessRequests}</p></td>
+      <td><p>${formatRankedApp(row.topDepartments, 0)}</p></td>
+      <td><p>${formatRankedApp(row.topDepartments, 1)}</p></td>
+      <td><p>${formatRankedApp(row.topDepartments, 2)}</p></td>
+    </tr>
+  `).join('');
+}
+
 function generateHistoricalHtml(weeklyRows) {
   const generatedAt = new Date().toLocaleString('en-US', {
     timeZone: 'America/New_York',
     dateStyle: 'long',
     timeStyle: 'short'
   });
-  const cumulative = buildCumulativeLeaderboard(weeklyRows);
+  const cumulativeApps = buildCumulativeLeaderboard(weeklyRows, 'appCounts');
+  const cumulativeDepartments = buildCumulativeLeaderboard(weeklyRows, 'departmentCounts');
   const latestWeek = weeklyRows[weeklyRows.length - 1] || {
     weekStart: parseDateOnly(HISTORY_START_MONDAY),
     weekEnd: getSundayUtc(parseDateOnly(HISTORY_START_MONDAY))
@@ -358,7 +379,19 @@ function generateHistoricalHtml(weeklyRows) {
       <th><p><strong>Application</strong></p></th>
       <th><p><strong>Total Requests</strong></p></th>
     </tr>
-    ${renderCumulativeRows(cumulative)}
+    ${renderCumulativeRows(cumulativeApps)}
+  </tbody>
+</table>
+
+<h2>Cumulative Top Departments Since January 2026</h2>
+<table data-layout="default">
+  <tbody>
+    <tr>
+      <th><p><strong>Rank</strong></p></th>
+      <th><p><strong>Department</strong></p></th>
+      <th><p><strong>Total Requests</strong></p></th>
+    </tr>
+    ${renderCumulativeRows(cumulativeDepartments)}
   </tbody>
 </table>
 
@@ -379,7 +412,22 @@ function generateHistoricalHtml(weeklyRows) {
   </tbody>
 </table>
 
-<p><em>Source: Jira resolved access-request tickets grouped into completed Monday-Sunday weeks using Service Catalog application labels.</em></p>
+<h2>Weekly Top Departments Timeline</h2>
+<p><em>Departments are grouped from the same access-request tickets so the department and app timelines can be compared week by week.</em></p>
+<table data-layout="wide">
+  <tbody>
+    <tr>
+      <th><p><strong>Week</strong></p></th>
+      <th><p><strong>Access Requests</strong></p></th>
+      <th><p><strong>Top Dept 1</strong></p></th>
+      <th><p><strong>Top Dept 2</strong></p></th>
+      <th><p><strong>Top Dept 3</strong></p></th>
+    </tr>
+    ${renderWeeklyDepartmentRows(weeklyRows)}
+  </tbody>
+</table>
+
+<p><em>Source: Jira resolved access-request tickets grouped into completed Monday-Sunday weeks using Service Catalog application labels and employee department metadata.</em></p>
 <p><em>Related dashboard: <a href="https://${JIRA_BASE_URL}/wiki/spaces/${CONFLUENCE_SPACE_KEY}/pages/6423805982">ISD Weekly Metrics</a></em></p>
 `;
 }
