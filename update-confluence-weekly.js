@@ -10,7 +10,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { saveWeeklyMetrics } = require('./save-metrics-to-json');
-const { checkOOOStatus, checkWorkforceChanges, formatForConfluence, getMondayOfWeek } = require('./check-calendar-ooo');
+const { checkOOOStatus, checkWorkforceChanges, formatForConfluence, getMondayOfWeek, getSundayOfWeek } = require('./check-calendar-ooo');
 
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
@@ -38,6 +38,9 @@ const ATLASSIAN_EMAIL = process.env.ATLASSIAN_EMAIL;
 const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN || process.env.ATLASSIAN_API_TOKEN;
 const CONFLUENCE_API_TOKEN = process.env.CONFLUENCE_API_TOKEN || process.env.ATLASSIAN_API_TOKEN;
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+const WORKFORCE_OVERRIDE_ONBOARDED = process.env.WORKFORCE_OVERRIDE_ONBOARDED;
+const WORKFORCE_OVERRIDE_OFFBOARDED = process.env.WORKFORCE_OVERRIDE_OFFBOARDED;
+const WORKFORCE_SOURCE_NOTE = process.env.WORKFORCE_SOURCE_NOTE;
 
 if (!ATLASSIAN_EMAIL || !JIRA_API_TOKEN) {
   console.error('Error: ATLASSIAN_EMAIL and JIRA_API_TOKEN (or ATLASSIAN_API_TOKEN) environment variables are required');
@@ -50,6 +53,55 @@ if (!SLACK_BOT_TOKEN) {
 
 const JIRA_AUTH_HEADER = 'Basic ' + Buffer.from(`${ATLASSIAN_EMAIL}:${JIRA_API_TOKEN}`).toString('base64');
 const CONFLUENCE_AUTH_HEADER = 'Basic ' + Buffer.from(`${ATLASSIAN_EMAIL}:${CONFLUENCE_API_TOKEN}`).toString('base64');
+
+function parseOptionalCount(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`Invalid workforce override count: ${value}`);
+  }
+
+  return parsed;
+}
+
+function getManualWorkforceOverride(weekStartDate) {
+  const onboardedCount = parseOptionalCount(WORKFORCE_OVERRIDE_ONBOARDED);
+  const offboardedCount = parseOptionalCount(WORKFORCE_OVERRIDE_OFFBOARDED);
+
+  if (onboardedCount === null && offboardedCount === null) {
+    return null;
+  }
+
+  if (onboardedCount === null || offboardedCount === null) {
+    throw new Error('Both WORKFORCE_OVERRIDE_ONBOARDED and WORKFORCE_OVERRIDE_OFFBOARDED are required when using manual workforce overrides');
+  }
+
+  const monday = getMondayOfWeek(weekStartDate);
+  const sunday = getSundayOfWeek(monday);
+  const mondayStr = monday.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const sundayStr = sunday.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+  return {
+    onboardedCount,
+    offboardedCount,
+    netChange: onboardedCount - offboardedCount,
+    onboardedPeople: [],
+    offboardedPeople: [],
+    onboardingDateLabel: `${mondayStr} cohort`,
+    offboardingDateLabel: `${mondayStr} to ${sundayStr}`,
+    onboardingDate: monday,
+    offboardingStartDate: monday,
+    offboardingEndDate: sunday,
+    fteContractorSplitSupported: false,
+    splitNote: 'FTE/Contractor split not available from calendar-only data',
+    connectorBacked: true,
+    source: 'codex-google-calendar-connector',
+    sourceNote: WORKFORCE_SOURCE_NOTE || 'Codex Google Calendar connector primary calendar'
+  };
+}
 
 /**
  * Make an HTTPS request
@@ -388,6 +440,32 @@ async function countCreatedTickets(jqlFilter, label, isRange = false) {
 async function countWorkforceChanges(weekStartDate, label) {
   console.log(`  Counting workforce changes for ${label}`);
 
+  const manualOverride = getManualWorkforceOverride(weekStartDate);
+  if (manualOverride) {
+    console.log('  Using manual workforce override from workflow dispatch inputs');
+    console.log(`    Onboarded (${manualOverride.onboardingDateLabel}): ${manualOverride.onboardedCount}`);
+    console.log(`    Offboarded (${manualOverride.offboardingDateLabel}): ${manualOverride.offboardedCount}`);
+    console.log(`    Net change: ${manualOverride.netChange > 0 ? '+' : ''}${manualOverride.netChange}`);
+
+    return {
+      fteOnboarding: manualOverride.onboardedCount,
+      contractorOnboarding: 0,
+      totalOnboarding: manualOverride.onboardedCount,
+      offboarding: manualOverride.offboardedCount,
+      netChange: manualOverride.netChange,
+      onboardingDateLabel: manualOverride.onboardingDateLabel,
+      offboardingDateLabel: manualOverride.offboardingDateLabel,
+      onboardedPeople: manualOverride.onboardedPeople,
+      offboardedPeople: manualOverride.offboardedPeople,
+      splitSupported: false,
+      available: true,
+      pendingVerification: false,
+      connectorBacked: true,
+      source: manualOverride.source,
+      sourceNote: manualOverride.sourceNote
+    };
+  }
+
   // Get workforce changes from Google Calendar
   const calendarData = await checkWorkforceChanges(weekStartDate);
 
@@ -431,7 +509,10 @@ async function countWorkforceChanges(weekStartDate, label) {
     available: !calendarData.error,
     pendingVerification: true,
     connectorBacked: false,
-    source: calendarData.error ? 'calendar-unavailable' : 'service-account-calendar'
+    source: calendarData.error ? 'calendar-unavailable' : 'service-account-calendar',
+    sourceNote: calendarData.error
+      ? 'Workforce data unavailable from repo calendar integration; connector-backed verification required'
+      : 'Repo Google Calendar service-account integration; connector-backed verification still recommended'
   };
 }
 
@@ -914,6 +995,16 @@ function generateTeamCapacitySection(currentMetrics, oooStatus) {
   return html;
 }
 
+function getWorkforceSourceText(workforce) {
+  if (!workforce) {
+    return 'Workforce source unavailable';
+  }
+
+  return workforce.sourceNote || (workforce.connectorBacked
+    ? 'Codex Google Calendar connector primary calendar'
+    : 'Repo calendar integration pending connector-backed verification');
+}
+
 /**
  * Generate Confluence HTML output
  */
@@ -1068,6 +1159,7 @@ ${generateTeamCapacitySection(currentMetrics, oooStatus)}
   </tbody>
 </table>
 <p><em>FTE/Contractor split: ${currentMetrics.workforce?.splitSupported ? 'Available' : 'Not available from calendar data - use Jira for ticket validation if needed'}</em></p>
+<p><em>Workforce source: ${getWorkforceSourceText(currentMetrics.workforce)}</em></p>
 
 ${generateLeadershipInsights(currentMetrics, oooStatus)}
 

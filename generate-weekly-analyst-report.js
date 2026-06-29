@@ -30,6 +30,21 @@ function describeSlaPercent(percent) {
   return { emoji: '⚠️', description: 'below SLA expectation' };
 }
 
+function formatWorkforceImpact(workforce = {}) {
+  const onboarded = workforce.totalOnboarding || 0;
+  const offboarded = workforce.offboarding || 0;
+  const netChange = workforce.netChange || 0;
+  const netLabel = `${netChange > 0 ? '+' : ''}${netChange}`;
+
+  return `${onboarded} onboarded (${workforce.onboardingDateLabel || 'Monday cohort'}), ${offboarded} offboarded (${workforce.offboardingDateLabel || 'Monday-Sunday week'}), net ${netLabel}`;
+}
+
+function getWorkforceSourceText(workforce = {}) {
+  return workforce.sourceNote || (workforce.connectorBacked
+    ? 'Codex Google Calendar connector primary calendar'
+    : 'Repo calendar integration pending connector-backed verification');
+}
+
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
 const CONFLUENCE_PAGE_ID = '6424363046'; // Weekly Analyst Report page
@@ -246,7 +261,8 @@ ${confidenceNote}
   <li><strong>SLA Performance:</strong> ${currentMetrics.overallSlaPercent}% SLA achievement (${slaChange > 0 ? '+' : ''}${slaChange.toFixed(1)}pp WoW) - ${slaComparison.emoji} ${slaComparison.description}</li>
   <li><strong>Customer Satisfaction:</strong> CSAT ${currentMetrics.csat.avgScore}/5.0 from ${currentMetrics.csat.totalResponses} reviews - ${csatComparison.emoji} ${csatComparison.description}</li>
   <li><strong>Automation:</strong> ${currentMetrics.automationPercent}% of tickets handled without human intervention - ${automationComparison.emoji} ${automationComparison.description}</li>
-  <li><strong>Workforce Impact:</strong> ${currentMetrics.workforce?.totalOnboarding || 0} onboarded (${currentMetrics.workforce?.fteOnboarding || 0} FTE, ${currentMetrics.workforce?.contractorOnboarding || 0} contractors), ${currentMetrics.workforce?.offboarding || 0} offboarded</li>
+  <li><strong>Workforce Impact:</strong> ${formatWorkforceImpact(currentMetrics.workforce)}</li>
+  <li><strong>Workforce Source:</strong> ${getWorkforceSourceText(currentMetrics.workforce)}</li>
 </ul>
 
 ${adjustedMetricsData.hasAdjustedMetrics ? '<p><strong>📊 Metrics Interpretation:</strong> Raw metrics show elevated time values due to a known anomaly. Adjusted metrics (excluding anomaly-affected tickets) indicate service performance remained within expected ranges. See "Raw vs Adjusted Metrics" section above.</p>' : ''}

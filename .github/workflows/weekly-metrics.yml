@@ -11,6 +11,18 @@ on:
         required: false
         default: false
         type: boolean
+      workforce_onboarded:
+        description: 'Optional connector-backed onboarded count override for the reporting week'
+        required: false
+        type: string
+      workforce_offboarded:
+        description: 'Optional connector-backed offboarded count override for the reporting week'
+        required: false
+        type: string
+      workforce_source_note:
+        description: 'Optional workforce source note shown in the report when overrides are used'
+        required: false
+        type: string
 
 jobs:
   update-metrics:
@@ -43,6 +55,9 @@ jobs:
           ATLASSIAN_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
           ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          WORKFORCE_OVERRIDE_ONBOARDED: ${{ inputs.workforce_onboarded }}
+          WORKFORCE_OVERRIDE_OFFBOARDED: ${{ inputs.workforce_offboarded }}
+          WORKFORCE_SOURCE_NOTE: ${{ inputs.workforce_source_note }}
         run: |
           echo "📊 Step 1/2: Updating ISD Weekly Metrics Dashboard..."
           node update-confluence-weekly.js
