@@ -283,17 +283,6 @@ function buildCumulativeLeaderboard(weeklyRows) {
     .slice(0, 15);
 }
 
-function renderAppSummary(apps, limit = 5) {
-  if (!apps.length) {
-    return 'No access-request apps recorded';
-  }
-
-  return apps
-    .slice(0, limit)
-    .map(([app, count]) => `${app} (${count})`)
-    .join(', ');
-}
-
 function renderCumulativeRows(entries) {
   if (!entries.length) {
     return `
@@ -311,13 +300,25 @@ function renderCumulativeRows(entries) {
   `).join('');
 }
 
+function formatRankedApp(apps, index) {
+  const entry = apps[index];
+  if (!entry) {
+    return '—';
+  }
+
+  return `${entry[0]} (${entry[1]})`;
+}
+
 function renderWeeklyRows(weeklyRows) {
   return weeklyRows.map((row) => `
     <tr>
       <td><p>${formatEtDate(row.weekStart, { month: 'short', day: 'numeric' })} - ${formatEtDate(row.weekEnd, { month: 'short', day: 'numeric', year: 'numeric' })}</p></td>
       <td><p>${row.totalAccessRequests}</p></td>
-      <td><p>${row.topApps[0] ? `${row.topApps[0][0]} (${row.topApps[0][1]})` : 'None'}</p></td>
-      <td><p>${renderAppSummary(row.topApps, 5)}</p></td>
+      <td><p>${formatRankedApp(row.topApps, 0)}</p></td>
+      <td><p>${formatRankedApp(row.topApps, 1)}</p></td>
+      <td><p>${formatRankedApp(row.topApps, 2)}</p></td>
+      <td><p>${formatRankedApp(row.topApps, 3)}</p></td>
+      <td><p>${formatRankedApp(row.topApps, 4)}</p></td>
     </tr>
   `).join('');
 }
@@ -362,13 +363,17 @@ function generateHistoricalHtml(weeklyRows) {
 </table>
 
 <h2>Weekly Top Apps Timeline</h2>
+<p><em>One row per completed week, ordered from January 2026 forward so week-to-week app demand shifts are easy to scan.</em></p>
 <table data-layout="wide">
   <tbody>
     <tr>
       <th><p><strong>Week</strong></p></th>
       <th><p><strong>Access Requests</strong></p></th>
-      <th><p><strong>Weekly Leader</strong></p></th>
-      <th><p><strong>Top 5 Apps</strong></p></th>
+      <th><p><strong>Top 1</strong></p></th>
+      <th><p><strong>Top 2</strong></p></th>
+      <th><p><strong>Top 3</strong></p></th>
+      <th><p><strong>Top 4</strong></p></th>
+      <th><p><strong>Top 5</strong></p></th>
     </tr>
     ${renderWeeklyRows(weeklyRows)}
   </tbody>
