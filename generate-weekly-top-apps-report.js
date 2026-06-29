@@ -2,16 +2,22 @@
 
 /**
  * Weekly Top Apps Running Report
- * Updates Confluence page:
+ * Rebuilds a weekly top-apps history from Jira starting with the first
+ * full Monday-Sunday week of January 2026 and updates Confluence page:
  * https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6669565981
  */
 
 const https = require('https');
-const { loadWeeklyMetrics } = require('./save-metrics-to-json');
 
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
 const CONFLUENCE_PAGE_ID = '6669565981';
 const CONFLUENCE_SPACE_KEY = 'ISD';
+const ASSETS_WORKSPACE_ID = '0e0847de-b6ef-45db-b74f-45e404e34d0c';
+
+const FIELD_SERVICE_CATALOG = 'customfield_14446';
+const FIELD_REQUEST_TYPE = 'customfield_10021';
+const HISTORY_START_MONDAY = '2026-01-05';
+const RESOLVED_STATUSES = '"13. Done", Canceled, Closed, Completed, Declined, Resolved';
 
 const ATLASSIAN_EMAIL = process.env.ATLASSIAN_EMAIL;
 const ATLASSIAN_API_TOKEN = process.env.ATLASSIAN_API_TOKEN;
@@ -56,139 +62,319 @@ function makeRequest(hostname, path, method = 'GET', data = null, additionalHead
   });
 }
 
-function buildAppMap(entries = []) {
-  return new Map(entries.map(([app, count]) => [app, count]));
+function formatEtDate(date, opts = {}) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    ...opts
+  }).format(date);
 }
 
-function calculateMovers(currentApps = [], previousApps = []) {
-  const previousMap = buildAppMap(previousApps);
+function getTimeZoneDate(timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date());
 
-  return currentApps
-    .map(([app, count]) => {
-      const previous = previousMap.get(app) || 0;
-      return {
-        app,
-        count,
-        previous,
-        delta: count - previous
-      };
-    })
-    .sort((a, b) => {
-      if (Math.abs(b.delta) !== Math.abs(a.delta)) {
-        return Math.abs(b.delta) - Math.abs(a.delta);
+  const year = Number.parseInt(parts.find((part) => part.type === 'year').value, 10);
+  const month = Number.parseInt(parts.find((part) => part.type === 'month').value, 10);
+  const day = Number.parseInt(parts.find((part) => part.type === 'day').value, 10);
+
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function parseDateOnly(value) {
+  const [year, month, day] = value.split('-').map((part) => Number.parseInt(part, 10));
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function getMondayUtc(date) {
+  const day = date.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  return addDays(date, diff);
+}
+
+function getSundayUtc(monday) {
+  return addDays(monday, 6);
+}
+
+function formatDateOnlyUtc(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function getHistoryWindow() {
+  const todayEt = getTimeZoneDate('America/New_York');
+  const currentWeekMonday = getMondayUtc(todayEt);
+  const lastCompletedSunday = addDays(currentWeekMonday, -1);
+  const startMonday = parseDateOnly(HISTORY_START_MONDAY);
+
+  return {
+    startMonday,
+    lastCompletedSunday
+  };
+}
+
+async function getServiceCatalogLabel(objectId) {
+  const path = `/gateway/api/jsm/assets/workspace/${ASSETS_WORKSPACE_ID}/v1/object/${objectId}`;
+  const response = await makeRequest(JIRA_BASE_URL, path, 'GET', null, {
+    'Authorization': AUTH_HEADER
+  });
+  return response.label || null;
+}
+
+async function buildServiceCatalogCache(issues) {
+  const objectIds = new Set();
+
+  for (const issue of issues) {
+    const serviceCatalog = issue.fields[FIELD_SERVICE_CATALOG];
+    if (!Array.isArray(serviceCatalog)) {
+      continue;
+    }
+
+    for (const entry of serviceCatalog) {
+      if (entry.objectId) {
+        objectIds.add(entry.objectId);
       }
-      return b.count - a.count;
-    })
-    .slice(0, 5);
+    }
+  }
+
+  const cache = {};
+  for (const objectId of objectIds) {
+    try {
+      const label = await getServiceCatalogLabel(objectId);
+      if (label) {
+        cache[objectId] = label;
+      }
+    } catch (error) {
+      console.warn(`Warning: Could not fetch Service Catalog label for object ${objectId}: ${error.message}`);
+    }
+  }
+
+  return cache;
 }
 
-function renderAppRows(entries = [], emptyLabel) {
-  if (entries.length === 0) {
+async function fetchHistoricalIssues(startMonday, endSunday) {
+  const fields = ['resolutiondate', 'issuetype', FIELD_REQUEST_TYPE, FIELD_SERVICE_CATALOG];
+  const jql = `project = ISD AND resolutiondate >= "${formatDateOnlyUtc(startMonday)}" AND resolutiondate <= "${formatDateOnlyUtc(endSunday)}" AND status in (${RESOLVED_STATUSES})`;
+
+  let allIssues = [];
+  let nextPageToken = null;
+  let isLast = false;
+
+  while (!isLast) {
+    let path = `/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=1000&fields=${fields.join(',')}`;
+    if (nextPageToken) {
+      path += `&nextPageToken=${encodeURIComponent(nextPageToken)}`;
+    }
+
+    const response = await makeRequest(JIRA_BASE_URL, path, 'GET', null, {
+      'Authorization': AUTH_HEADER
+    });
+
+    allIssues = allIssues.concat(response.issues || []);
+    isLast = response.isLast !== false;
+    nextPageToken = response.nextPageToken;
+  }
+
+  return allIssues;
+}
+
+function isAccessRequest(issue) {
+  const requestType = issue.fields[FIELD_REQUEST_TYPE];
+  const issueType = issue.fields.issuetype?.name || '';
+
+  return Boolean(
+    requestType &&
+    (requestType.requestType?.name?.toLowerCase().includes('access') ||
+      issueType.toLowerCase().includes('access'))
+  );
+}
+
+function initWeeklyBucket(monday) {
+  return {
+    weekStart: monday,
+    weekEnd: getSundayUtc(monday),
+    totalAccessRequests: 0,
+    appCounts: {}
+  };
+}
+
+function buildWeekBuckets(startMonday, lastCompletedSunday) {
+  const weeks = [];
+  const weekMap = new Map();
+
+  for (let monday = new Date(startMonday); monday <= lastCompletedSunday; monday = addDays(monday, 7)) {
+    const key = formatDateOnlyUtc(monday);
+    const bucket = initWeeklyBucket(monday);
+    weeks.push(bucket);
+    weekMap.set(key, bucket);
+  }
+
+  return { weeks, weekMap };
+}
+
+function aggregateWeeklyData(issues, serviceCatalogCache, startMonday, lastCompletedSunday) {
+  const { weeks, weekMap } = buildWeekBuckets(startMonday, lastCompletedSunday);
+
+  for (const issue of issues) {
+    if (!isAccessRequest(issue) || !issue.fields.resolutiondate) {
+      continue;
+    }
+
+    const resolvedDate = new Date(issue.fields.resolutiondate);
+    const weekStart = getMondayUtc(new Date(Date.UTC(
+      resolvedDate.getUTCFullYear(),
+      resolvedDate.getUTCMonth(),
+      resolvedDate.getUTCDate()
+    )));
+    const weekKey = formatDateOnlyUtc(weekStart);
+    const bucket = weekMap.get(weekKey);
+
+    if (!bucket) {
+      continue;
+    }
+
+    bucket.totalAccessRequests++;
+
+    const serviceCatalog = issue.fields[FIELD_SERVICE_CATALOG];
+    if (!Array.isArray(serviceCatalog)) {
+      continue;
+    }
+
+    for (const entry of serviceCatalog) {
+      const appName = serviceCatalogCache[entry.objectId];
+      if (!appName) {
+        continue;
+      }
+
+      bucket.appCounts[appName] = (bucket.appCounts[appName] || 0) + 1;
+    }
+  }
+
+  return weeks.map((bucket) => ({
+    ...bucket,
+    topApps: Object.entries(bucket.appCounts)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 10)
+  }));
+}
+
+function buildCumulativeLeaderboard(weeklyRows) {
+  const totals = new Map();
+
+  for (const row of weeklyRows) {
+    for (const [app, count] of Object.entries(row.appCounts || {})) {
+      totals.set(app, (totals.get(app) || 0) + count);
+    }
+  }
+
+  return Array.from(totals.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 15);
+}
+
+function renderAppSummary(apps, limit = 5) {
+  if (!apps.length) {
+    return 'No access-request apps recorded';
+  }
+
+  return apps
+    .slice(0, limit)
+    .map(([app, count]) => `${app} (${count})`)
+    .join(', ');
+}
+
+function renderCumulativeRows(entries) {
+  if (!entries.length) {
     return `
     <tr>
-      <td colspan="3"><p>${emptyLabel}</p></td>
+      <td colspan="3"><p>No cumulative app activity found for the selected history window.</p></td>
     </tr>`;
   }
 
-  const total = entries.reduce((sum, [, count]) => sum + count, 0);
-
-  return entries.map(([app, count], index) => {
-    const share = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
-    return `
+  return entries.map(([app, count], index) => `
     <tr>
       <td><p>${index + 1}</p></td>
       <td><p>${app}</p></td>
-      <td><p>${count} (${share}%)</p></td>
-    </tr>`;
-  }).join('');
-}
-
-function renderMoverRows(movers = []) {
-  if (movers.length === 0) {
-    return `
-    <tr>
-      <td colspan="4"><p>No application movement available for this week.</p></td>
-    </tr>`;
-  }
-
-  return movers.map(({ app, count, previous, delta }) => `
-    <tr>
-      <td><p>${app}</p></td>
       <td><p>${count}</p></td>
-      <td><p>${previous}</p></td>
-      <td><p>${delta > 0 ? '+' : ''}${delta}</p></td>
     </tr>
   `).join('');
 }
 
-function generateTopAppsHTML(currentMetrics, previousMetrics) {
-  const timestamp = new Date().toLocaleString('en-US', {
+function renderWeeklyRows(weeklyRows) {
+  return weeklyRows.map((row) => `
+    <tr>
+      <td><p>${formatEtDate(row.weekStart, { month: 'short', day: 'numeric' })} - ${formatEtDate(row.weekEnd, { month: 'short', day: 'numeric', year: 'numeric' })}</p></td>
+      <td><p>${row.totalAccessRequests}</p></td>
+      <td><p>${row.topApps[0] ? `${row.topApps[0][0]} (${row.topApps[0][1]})` : 'None'}</p></td>
+      <td><p>${renderAppSummary(row.topApps, 5)}</p></td>
+    </tr>
+  `).join('');
+}
+
+function generateHistoricalHtml(weeklyRows) {
+  const generatedAt = new Date().toLocaleString('en-US', {
     timeZone: 'America/New_York',
     dateStyle: 'long',
     timeStyle: 'short'
   });
-
-  const currentApps = currentMetrics.saasAppCounts || [];
-  const previousApps = previousMetrics.saasAppCounts || [];
-  const movers = calculateMovers(currentApps, previousApps);
-  const topApp = currentApps[0]?.[0] || 'N/A';
-  const topAppCount = currentApps[0]?.[1] || 0;
+  const cumulative = buildCumulativeLeaderboard(weeklyRows);
+  const latestWeek = weeklyRows[weeklyRows.length - 1] || {
+    weekStart: parseDateOnly(HISTORY_START_MONDAY),
+    weekEnd: getSundayUtc(parseDateOnly(HISTORY_START_MONDAY))
+  };
+  const totalRequests = weeklyRows.reduce((sum, row) => sum + row.totalAccessRequests, 0);
 
   return `
 <h1>ISD Weekly Top Apps Running Report</h1>
-<p><em>Last updated: ${timestamp} ET</em></p>
-<p><strong>Reporting window:</strong> ${currentMetrics.period}</p>
+<p><em>Last updated: ${generatedAt} ET</em></p>
+<p><strong>History window:</strong> first full Monday-Sunday week of January 2026 through the latest completed week</p>
 
 <ac:structured-macro ac:name="info">
   <ac:rich-text-body>
-    <p><strong>Summary:</strong> ${currentMetrics.accessRequestCount || 0} access requests this week. Top requested application was <strong>${topApp}</strong> with <strong>${topAppCount}</strong> requests.</p>
-    <p>This page is updated automatically every Monday at 9:00 AM ET from the weekly metrics workflow.</p>
+    <p><strong>Coverage:</strong> ${weeklyRows.length} completed weeks since January 2026.</p>
+    <p><strong>Total access requests in history:</strong> ${totalRequests}</p>
+    <p><strong>Latest completed week:</strong> ${formatEtDate(latestWeek.weekStart, { month: 'short', day: 'numeric' })} - ${formatEtDate(latestWeek.weekEnd, { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+    <p>This page updates automatically every Monday at 9:00 AM ET as part of the weekly metrics workflow.</p>
   </ac:rich-text-body>
 </ac:structured-macro>
 
-<h2>This Week's Top Applications</h2>
-<p><strong>Total Access Requests:</strong> ${currentMetrics.accessRequestCount || 0}</p>
-
+<h2>Cumulative Top Applications Since January 2026</h2>
 <table data-layout="default">
   <tbody>
     <tr>
       <th><p><strong>Rank</strong></p></th>
       <th><p><strong>Application</strong></p></th>
-      <th><p><strong>Requests</strong></p></th>
+      <th><p><strong>Total Requests</strong></p></th>
     </tr>
-    ${renderAppRows(currentApps, 'No top application requests were captured for this week.')}
+    ${renderCumulativeRows(cumulative)}
   </tbody>
 </table>
 
-<h2>Week-over-Week Change</h2>
-<p><strong>Prior week:</strong> ${previousMetrics.period}</p>
-<p><strong>Prior Access Requests:</strong> ${previousMetrics.accessRequestCount || 0}</p>
-
-<table data-layout="default">
+<h2>Weekly Top Apps Timeline</h2>
+<table data-layout="wide">
   <tbody>
     <tr>
-      <th><p><strong>Application</strong></p></th>
-      <th><p><strong>This Week</strong></p></th>
-      <th><p><strong>Last Week</strong></p></th>
-      <th><p><strong>Delta</strong></p></th>
+      <th><p><strong>Week</strong></p></th>
+      <th><p><strong>Access Requests</strong></p></th>
+      <th><p><strong>Weekly Leader</strong></p></th>
+      <th><p><strong>Top 5 Apps</strong></p></th>
     </tr>
-    ${renderMoverRows(movers)}
+    ${renderWeeklyRows(weeklyRows)}
   </tbody>
 </table>
 
-<h2>Previous Week Top Applications</h2>
-<table data-layout="default">
-  <tbody>
-    <tr>
-      <th><p><strong>Rank</strong></p></th>
-      <th><p><strong>Application</strong></p></th>
-      <th><p><strong>Requests</strong></p></th>
-    </tr>
-    ${renderAppRows(previousApps, 'No prior-week application requests were captured.')}
-  </tbody>
-</table>
-
-<p><em>Source: Weekly metrics cache generated by the Monday ISD metrics workflow from Jira service catalog request data.</em></p>
+<p><em>Source: Jira resolved access-request tickets grouped into completed Monday-Sunday weeks using Service Catalog application labels.</em></p>
 <p><em>Related dashboard: <a href="https://${JIRA_BASE_URL}/wiki/spaces/${CONFLUENCE_SPACE_KEY}/pages/6423805982">ISD Weekly Metrics</a></em></p>
 `;
 }
@@ -229,23 +415,23 @@ async function updateConfluencePage(html) {
   console.log(`  URL: https://${JIRA_BASE_URL}/wiki/spaces/${CONFLUENCE_SPACE_KEY}/pages/${CONFLUENCE_PAGE_ID}`);
 }
 
-function loadMetrics() {
-  try {
-    const data = loadWeeklyMetrics();
-    return {
-      current: data.currentWeek,
-      previous: data.previousWeek
-    };
-  } catch (error) {
-    console.error('✗ Error loading weekly metrics cache:', error.message);
-    process.exit(1);
-  }
-}
-
 async function main() {
   console.log('=== Weekly Top Apps Running Report Generator ===\n');
-  const metrics = loadMetrics();
-  const html = generateTopAppsHTML(metrics.current, metrics.previous);
+
+  const { startMonday, lastCompletedSunday } = getHistoryWindow();
+  console.log(`History start week: ${formatDateOnlyUtc(startMonday)}`);
+  console.log(`Latest completed week end: ${formatDateOnlyUtc(lastCompletedSunday)}`);
+
+  const issues = await fetchHistoricalIssues(startMonday, lastCompletedSunday);
+  console.log(`Fetched ${issues.length} resolved issues in history window`);
+
+  const serviceCatalogCache = await buildServiceCatalogCache(issues);
+  console.log(`Cached ${Object.keys(serviceCatalogCache).length} service catalog labels`);
+
+  const weeklyRows = aggregateWeeklyData(issues, serviceCatalogCache, startMonday, lastCompletedSunday);
+  console.log(`Built ${weeklyRows.length} weekly history rows`);
+
+  const html = generateHistoricalHtml(weeklyRows);
   await updateConfluencePage(html);
 }
 
