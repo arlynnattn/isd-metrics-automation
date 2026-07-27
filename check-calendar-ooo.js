@@ -198,16 +198,13 @@ function extractPersonName(summary) {
  * @returns {Promise<Object>} - Workforce change data with explicit date ranges
  */
 async function checkWorkforceChanges(weekStart) {
+  const monday = getMondayOfWeek(weekStart);
+  const sunday = getSundayOfWeek(monday);
+  const mondayStr = monday.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const sundayStr = sunday.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
   try {
     const calendar = await getCalendarClient();
-
-    // Ensure weekStart is a Monday
-    const monday = getMondayOfWeek(weekStart);
-    const sunday = getSundayOfWeek(monday);
-
-    // Format dates for output
-    const mondayStr = monday.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-    const sundayStr = sunday.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
     console.log(`\nChecking workforce changes:`);
     console.log(`  Onboarding cohort: ${mondayStr} (Monday only)`);
@@ -267,6 +264,7 @@ async function checkWorkforceChanges(weekStart) {
     const netChange = onboardedCount - offboardedCount;
 
     return {
+      available: true,
       onboardedCount,
       offboardedCount,
       netChange,
@@ -287,17 +285,22 @@ async function checkWorkforceChanges(weekStart) {
   } catch (error) {
     console.error('Error checking workforce changes from calendar:', error.message);
 
-    // Return empty result on error
+    // Preserve the reporting window and explicitly mark the source unavailable.
     return {
-      onboardedCount: 0,
-      offboardedCount: 0,
-      netChange: 0,
+      available: false,
+      onboardedCount: null,
+      offboardedCount: null,
+      netChange: null,
       onboardedPeople: [],
       offboardedPeople: [],
-      onboardingDateLabel: 'Unknown',
-      offboardingDateLabel: 'Unknown',
+      onboardingDateLabel: `${mondayStr} cohort`,
+      offboardingDateLabel: `${mondayStr} to ${sundayStr}`,
+      onboardingDate: monday,
+      offboardingStartDate: monday,
+      offboardingEndDate: sunday,
       fteContractorSplitSupported: false,
       splitNote: 'Calendar check failed',
+      unavailableReason: error.message,
       error: error.message
     };
   }

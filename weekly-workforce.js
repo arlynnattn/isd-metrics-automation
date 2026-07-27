@@ -24,22 +24,49 @@ function formatNetChange(netChange) {
   return '⚪️ 0';
 }
 
-function buildWeeklyWorkforceSlackSection(workforce = {}) {
+function isWorkforceDataAvailable(workforce = {}) {
+  return workforce.available !== false;
+}
+
+function formatWorkforceMetricValue(workforce = {}, key) {
+  if (!isWorkforceDataAvailable(workforce)) {
+    return 'Unavailable';
+  }
+
+  const value = workforce[key];
+  return value ?? 0;
+}
+
+function formatWorkforceNetChangeValue(workforce = {}) {
+  if (!isWorkforceDataAvailable(workforce)) {
+    return 'Unavailable';
+  }
+
   const totalOnboarding = workforce.totalOnboarding ?? 0;
   const offboarding = workforce.offboarding ?? 0;
   const netChange = workforce.netChange ?? (totalOnboarding - offboarding);
+  return formatNetChange(netChange);
+}
+
+function buildWeeklyWorkforceSlackSection(workforce = {}) {
+  const totalOnboarding = formatWorkforceMetricValue(workforce, 'totalOnboarding');
+  const offboarding = formatWorkforceMetricValue(workforce, 'offboarding');
+  const netChange = formatWorkforceNetChangeValue(workforce);
   const onboardingDateLabel = workforce.onboardingDateLabel || 'Unknown cohort';
   const offboardingDateLabel = workforce.offboardingDateLabel || 'Unknown range';
   const splitSupported = workforce.splitSupported === true;
+  const unavailableReason = workforce.unavailableReason || workforce.error;
 
   const lines = [
     '👥 *Workforce*',
     `➕ Onboarded: ${totalOnboarding} (${onboardingDateLabel})`,
     `➖ Offboarded: ${offboarding} (${offboardingDateLabel})`,
-    `📊 Net: ${formatNetChange(netChange)}`
+    `📊 Net: ${netChange}`
   ];
 
-  if (!splitSupported) {
+  if (!isWorkforceDataAvailable(workforce) && unavailableReason) {
+    lines.push(`⚠️ Source unavailable: ${unavailableReason}`);
+  } else if (!splitSupported) {
     lines.push('ℹ️ Source: Google Calendar totals only; FTE/contractor split unavailable');
   }
 
@@ -66,6 +93,9 @@ module.exports = {
   buildWeeklyCapacitySlackLine,
   buildWeeklyWorkforceSlackSection,
   formatNetChange,
+  formatWorkforceMetricValue,
+  formatWorkforceNetChangeValue,
   getWeeklyReportingAnchors,
   getWeeklySupportEngineers,
+  isWorkforceDataAvailable,
 };

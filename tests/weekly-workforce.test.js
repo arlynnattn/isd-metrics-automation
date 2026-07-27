@@ -4,8 +4,11 @@ const assert = require('node:assert/strict');
 const {
   buildWeeklyCapacitySlackLine,
   buildWeeklyWorkforceSlackSection,
+  formatWorkforceMetricValue,
+  formatWorkforceNetChangeValue,
   getWeeklyReportingAnchors,
   getWeeklySupportEngineers,
+  isWorkforceDataAvailable,
 } = require('../weekly-workforce');
 
 test('anchors weekly workforce to the reporting window start instead of the run-date Monday', () => {
@@ -49,4 +52,27 @@ test('formats weekly Slack capacity note from the new support baseline', () => {
   const line = buildWeeklyCapacitySlackLine(new Date('2026-07-27T12:00:00-04:00'));
 
   assert.equal(line, '👤 Team Capacity: 2 support engineers baseline (effective July 17, 2026)');
+});
+
+test('marks Slack workforce section as unavailable when calendar data is missing', () => {
+  const section = buildWeeklyWorkforceSlackSection({
+    available: false,
+    onboardingDateLabel: 'July 20, 2026 cohort',
+    offboardingDateLabel: 'July 20, 2026 to July 26, 2026',
+    unavailableReason: 'Google Calendar credentials not found',
+  });
+
+  assert.match(section, /Onboarded: Unavailable \(July 20, 2026 cohort\)/);
+  assert.match(section, /Offboarded: Unavailable \(July 20, 2026 to July 26, 2026\)/);
+  assert.match(section, /Net: Unavailable/);
+  assert.match(section, /Source unavailable: Google Calendar credentials not found/);
+  assert.doesNotMatch(section, /Onboarded: 0/);
+});
+
+test('formats unavailable workforce values for downstream displays', () => {
+  const workforce = { available: false };
+
+  assert.equal(isWorkforceDataAvailable(workforce), false);
+  assert.equal(formatWorkforceMetricValue(workforce, 'totalOnboarding'), 'Unavailable');
+  assert.equal(formatWorkforceNetChangeValue(workforce), 'Unavailable');
 });

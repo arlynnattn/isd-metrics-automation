@@ -11,7 +11,13 @@ const fs = require('fs');
 const path = require('path');
 const { saveWeeklyMetrics } = require('./save-metrics-to-json');
 const { checkOOOStatus, checkWorkforceChanges, formatForConfluence } = require('./check-calendar-ooo');
-const { getWeeklyReportingAnchors, getWeeklySupportEngineers } = require('./weekly-workforce');
+const {
+  formatWorkforceMetricValue,
+  formatWorkforceNetChangeValue,
+  getWeeklyReportingAnchors,
+  getWeeklySupportEngineers,
+  isWorkforceDataAvailable,
+} = require('./weekly-workforce');
 
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
@@ -393,14 +399,13 @@ async function countWorkforceChanges(weekStartDate, label) {
 
   if (calendarData.error) {
     console.warn(`  ⚠️  Calendar check failed: ${calendarData.error}`);
-    console.warn(`  ⚠️  Falling back to zero counts due to calendar unavailability`);
   }
 
   // Log the results with explicit dates
   console.log(`  Calendar-based counts:`);
-  console.log(`    Onboarded (${calendarData.onboardingDateLabel}): ${calendarData.onboardedCount}`);
-  console.log(`    Offboarded (${calendarData.offboardingDateLabel}): ${calendarData.offboardedCount}`);
-  console.log(`    Net change: ${calendarData.netChange > 0 ? '+' : ''}${calendarData.netChange}`);
+  console.log(`    Onboarded (${calendarData.onboardingDateLabel}): ${formatWorkforceMetricValue(calendarData, 'onboardedCount')}`);
+  console.log(`    Offboarded (${calendarData.offboardingDateLabel}): ${formatWorkforceMetricValue(calendarData, 'offboardedCount')}`);
+  console.log(`    Net change: ${formatWorkforceNetChangeValue(calendarData)}`);
 
   if (calendarData.onboardedPeople.length > 0) {
     console.log(`    Onboarded people: ${calendarData.onboardedPeople.join(', ')}`);
@@ -417,6 +422,7 @@ async function countWorkforceChanges(weekStartDate, label) {
   // Return data in format expected by the rest of the script
   // Note: FTE/contractor breakdown is not supported by calendar alone
   return {
+    available: isWorkforceDataAvailable(calendarData),
     fteOnboarding: calendarData.onboardedCount, // Total onboarding (FTE split not available)
     contractorOnboarding: 0, // Not supported by calendar
     totalOnboarding: calendarData.onboardedCount,
@@ -427,7 +433,9 @@ async function countWorkforceChanges(weekStartDate, label) {
     offboardingDateLabel: calendarData.offboardingDateLabel,
     onboardedPeople: calendarData.onboardedPeople,
     offboardedPeople: calendarData.offboardedPeople,
-    splitSupported: false // FTE/contractor split not available from calendar
+    splitSupported: false, // FTE/contractor split not available from calendar
+    unavailableReason: calendarData.unavailableReason,
+    error: calendarData.error,
   };
 }
 
@@ -1051,22 +1059,22 @@ ${generateTeamCapacitySection(currentMetrics, oooStatus)}
     </tr>
     <tr>
       <td><p>Onboarded</p></td>
-      <td><p>${currentMetrics.workforce?.totalOnboarding || 0} (${currentMetrics.workforce?.onboardingDateLabel || 'N/A'})</p></td>
-      <td><p>${previousMetrics.workforce?.totalOnboarding || 0} (${previousMetrics.workforce?.onboardingDateLabel || 'N/A'})</p></td>
+      <td><p>${formatWorkforceMetricValue(currentMetrics.workforce, 'totalOnboarding')} (${currentMetrics.workforce?.onboardingDateLabel || 'N/A'})</p></td>
+      <td><p>${formatWorkforceMetricValue(previousMetrics.workforce, 'totalOnboarding')} (${previousMetrics.workforce?.onboardingDateLabel || 'N/A'})</p></td>
     </tr>
     <tr>
       <td><p>Offboarded</p></td>
-      <td><p>${currentMetrics.workforce?.offboarding || 0} (${currentMetrics.workforce?.offboardingDateLabel || 'N/A'})</p></td>
-      <td><p>${previousMetrics.workforce?.offboarding || 0} (${previousMetrics.workforce?.offboardingDateLabel || 'N/A'})</p></td>
+      <td><p>${formatWorkforceMetricValue(currentMetrics.workforce, 'offboarding')} (${currentMetrics.workforce?.offboardingDateLabel || 'N/A'})</p></td>
+      <td><p>${formatWorkforceMetricValue(previousMetrics.workforce, 'offboarding')} (${previousMetrics.workforce?.offboardingDateLabel || 'N/A'})</p></td>
     </tr>
     <tr>
       <td><p>Net Headcount Change</p></td>
-      <td><p>${currentMetrics.workforce?.netChange > 0 ? '+' : ''}${currentMetrics.workforce?.netChange || 0}</p></td>
-      <td><p>${previousMetrics.workforce?.netChange > 0 ? '+' : ''}${previousMetrics.workforce?.netChange || 0}</p></td>
+      <td><p>${formatWorkforceNetChangeValue(currentMetrics.workforce)}</p></td>
+      <td><p>${formatWorkforceNetChangeValue(previousMetrics.workforce)}</p></td>
     </tr>
   </tbody>
 </table>
-<p><em>FTE/Contractor split: ${currentMetrics.workforce?.splitSupported ? 'Available' : 'Not available from calendar data - use Jira for ticket validation if needed'}</em></p>
+<p><em>${isWorkforceDataAvailable(currentMetrics.workforce) ? `FTE/Contractor split: ${currentMetrics.workforce?.splitSupported ? 'Available' : 'Not available from calendar data - use Jira for ticket validation if needed'}` : `Workforce data unavailable: ${currentMetrics.workforce?.unavailableReason || currentMetrics.workforce?.error || 'Google Calendar source unavailable'}`}</em></p>
 
 ${generateLeadershipInsights(currentMetrics, oooStatus)}
 
@@ -1303,10 +1311,10 @@ async function main() {
     console.log('\nCounting workforce changes from Google Calendar...');
     const currentWorkforce = await countWorkforceChanges(weeks.currentWeek.monday, weeks.currentWeek.label);
     const previousWorkforce = await countWorkforceChanges(weeks.previousWeek.monday, weeks.previousWeek.label);
-    console.log(`Current week (${currentWorkforce.onboardingDateLabel}): ${currentWorkforce.totalOnboarding} onboarded`);
-    console.log(`Current week (${currentWorkforce.offboardingDateLabel}): ${currentWorkforce.offboarding} offboarded`);
-    console.log(`Previous week (${previousWorkforce.onboardingDateLabel}): ${previousWorkforce.totalOnboarding} onboarded`);
-    console.log(`Previous week (${previousWorkforce.offboardingDateLabel}): ${previousWorkforce.offboarding} offboarded`);
+    console.log(`Current week (${currentWorkforce.onboardingDateLabel}): ${formatWorkforceMetricValue(currentWorkforce, 'totalOnboarding')} onboarded`);
+    console.log(`Current week (${currentWorkforce.offboardingDateLabel}): ${formatWorkforceMetricValue(currentWorkforce, 'offboarding')} offboarded`);
+    console.log(`Previous week (${previousWorkforce.onboardingDateLabel}): ${formatWorkforceMetricValue(previousWorkforce, 'totalOnboarding')} onboarded`);
+    console.log(`Previous week (${previousWorkforce.offboardingDateLabel}): ${formatWorkforceMetricValue(previousWorkforce, 'offboarding')} offboarded`);
 
     currentMetrics.workforce = currentWorkforce;
     previousMetrics.workforce = previousWorkforce;
