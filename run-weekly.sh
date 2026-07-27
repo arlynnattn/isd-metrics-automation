@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 # ISD Weekly Metrics Report Generator
 # Generates HTML report for last 7 days of ISD tickets
 
@@ -9,6 +11,21 @@
 # export SLACK_BOT_TOKEN="your-slack-token"
 
 cd "$(dirname "$0")"
+
+if [[ -z "${ATLASSIAN_EMAIL:-}" ]]; then
+  echo "✗ Missing ATLASSIAN_EMAIL"
+  exit 1
+fi
+
+if [[ -z "${JIRA_API_TOKEN:-${ATLASSIAN_API_TOKEN:-}}" ]]; then
+  echo "✗ Missing JIRA_API_TOKEN or ATLASSIAN_API_TOKEN"
+  exit 1
+fi
+
+if [[ -z "${SLACK_BOT_TOKEN:-}" ]]; then
+  echo "✗ Missing SLACK_BOT_TOKEN"
+  exit 1
+fi
 
 echo "🔄 Generating ISD Weekly Metrics Report..."
 node update-confluence-weekly.js

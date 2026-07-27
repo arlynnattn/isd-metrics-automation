@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 
 const CALENDAR_ID = 'c_820sf7kusu8t8ojt5nksme6nbc@group.calendar.google.com';
-const ENGINEERS = ['Carlos Ramirez', 'Artie Byers', 'JP Dulude'];
+const ENGINEERS = ['Carlos Ramirez', 'JP Dulude'];
 
 /**
  * Initialize Google Calendar API client

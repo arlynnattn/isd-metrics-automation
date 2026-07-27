@@ -10,7 +10,8 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { saveWeeklyMetrics } = require('./save-metrics-to-json');
-const { checkOOOStatus, checkWorkforceChanges, formatForConfluence, getMondayOfWeek } = require('./check-calendar-ooo');
+const { checkOOOStatus, checkWorkforceChanges, formatForConfluence } = require('./check-calendar-ooo');
+const { getWeeklyReportingAnchors, getWeeklySupportEngineers } = require('./weekly-workforce');
 
 // Configuration
 const JIRA_BASE_URL = 'attentivemobile.atlassian.net';
@@ -313,9 +314,8 @@ function getWeekRanges() {
   const twoWeeksAgo = new Date(now);
   twoWeeksAgo.setDate(now.getDate() - 14);
 
-  // Calculate Monday of current week for workforce changes
-  const currentMonday = getMondayOfWeek(now);
-  const previousMonday = getMondayOfWeek(weekAgo);
+  // Anchor workforce to the week being reported, not the run date.
+  const { currentWeekMonday, previousWeekMonday } = getWeeklyReportingAnchors(now);
 
   const options = { month: 'short', day: 'numeric' };
   const currentLabel = `Last 7 days (${weekAgo.toLocaleDateString('en-US', options)} - ${now.toLocaleDateString('en-US', options)}, ${now.getFullYear()})`;
@@ -326,7 +326,7 @@ function getWeekRanges() {
       jqlFilter: '-7d', // Use Jira's -7d syntax
       start: weekAgo, // Actual date for Slack/CSAT
       end: now,
-      monday: currentMonday, // Monday for workforce changes
+      monday: currentWeekMonday, // Monday for workforce changes
       label: currentLabel,
       shortLabel: 'This Week'
     },
@@ -336,7 +336,7 @@ function getWeekRanges() {
       createdFilterRange: 'created >= -14d AND created < -7d', // Full range filter for created
       start: twoWeeksAgo, // Actual date for Slack/CSAT
       end: weekAgo,
-      monday: previousMonday, // Monday for workforce changes
+      monday: previousWeekMonday, // Monday for workforce changes
       label: previousLabel,
       shortLabel: 'Last Week'
     }
@@ -825,7 +825,9 @@ function generateSummarySection(currentMetrics, oooStatus) {
  */
 function generateLeadershipInsights(currentMetrics, oooStatus) {
   const isReducedCapacity = oooStatus && oooStatus.oooCount > 0;
-  const activeCount = oooStatus?.activeCount || 3;
+  const supportEngineers = getWeeklySupportEngineers();
+  const baselineCount = supportEngineers.length;
+  const activeCount = oooStatus?.activeCount || baselineCount;
   const oooNames = oooStatus?.outOfOffice || [];
 
   let html = `<h2>Leadership Insights</h2>\n<ul>\n`;
@@ -833,7 +835,7 @@ function generateLeadershipInsights(currentMetrics, oooStatus) {
   if (isReducedCapacity) {
     // Reduced capacity messaging
     html += `  <li><strong>Automation Provides Operational Resilience:</strong> With ${oooNames.join(' and ')} out of office, automation ensured service continuity—${currentMetrics.resolvedCount} tickets resolved with ${currentMetrics.overallSlaPercent}% SLA performance demonstrates that automation isn't just efficiency, it's business continuity insurance against PTO, illness, and turnover</li>\n`;
-    html += `  <li><strong>${activeCount} Active Engineers + Automation = Full Team Capacity:</strong> ${oooStatus.active.join(' and ')} maintained service levels typically requiring 3+ engineers—automation absorbed the gap without requiring overtime or degraded quality, proving the scalability model works under real-world staffing constraints</li>\n`;
+    html += `  <li><strong>${activeCount} Active Engineers + Automation = Operational Continuity:</strong> ${oooStatus.active.join(' and ')} maintained service levels against a ${baselineCount}-engineer baseline—automation absorbed the gap without requiring overtime or degraded quality, proving the scalability model works under real-world staffing constraints</li>\n`;
   } else {
     // Full capacity messaging
     html += `  <li><strong>Automation Enables Team Efficiency:</strong> With full team capacity (${activeCount} active engineers), automation handled ${currentMetrics.automationPercent}% of tickets—${currentMetrics.resolvedCount} tickets resolved with ${currentMetrics.overallSlaPercent}% SLA performance demonstrates how automation multiplies team effectiveness</li>\n`;
@@ -850,7 +852,7 @@ function generateLeadershipInsights(currentMetrics, oooStatus) {
  * Generate Team Capacity section dynamically based on OOO status
  */
 function generateTeamCapacitySection(currentMetrics, oooStatus) {
-  const engineers = ['Carlos Ramirez', 'Artie Byers', 'JP Dulude'];
+  const engineers = getWeeklySupportEngineers();
 
   // Default to all active if no OOO data available
   const activeList = oooStatus?.active || engineers;
@@ -904,7 +906,7 @@ function generateTeamCapacitySection(currentMetrics, oooStatus) {
   if (oooList.length > 0) {
     html += `<p><strong>Resilience Impact:</strong> With ${oooList.join(' and ')} out of office, automation helped absorb workload alongside active engineers—demonstrating operational continuity without requiring overtime or degraded service quality.</p>\n`;
   } else {
-    html += `<p><strong>Team Status:</strong> Full team capacity with automation support enables efficient handling of ${currentMetrics.resolvedCount} tickets while maintaining ${currentMetrics.overallSlaPercent}% SLA performance.</p>\n`;
+    html += `<p><strong>Team Status:</strong> Current 2-engineer baseline with automation support enables efficient handling of ${currentMetrics.resolvedCount} tickets while maintaining ${currentMetrics.overallSlaPercent}% SLA performance.</p>\n`;
   }
 
   return html;
@@ -931,8 +933,9 @@ function generateConfluenceHTML(currentMetrics, previousMetrics, currentMonth, p
   const fteSaved = calculateFTE(currentMetrics.humanTimeReclaimed, 1);
 
   // Calculate team availability and workload distribution
+  const supportEngineerSet = new Set(getWeeklySupportEngineers());
   const topEngineers = currentMetrics.departmentBreakdown
-    .filter(([name]) => name === 'Carlos Ramirez' || name === 'Artie Byers' || name === 'JP Dulude')
+    .filter(([name]) => supportEngineerSet.has(name))
     .map(([name, count]) => ({ name, count }));
 
   let html = `

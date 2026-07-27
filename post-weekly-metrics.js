@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { loadWeeklyMetrics } = require('./save-metrics-to-json');
 const { formatTime } = require('./shared-metrics');
+const { buildWeeklyCapacitySlackLine, buildWeeklyWorkforceSlackSection } = require('./weekly-workforce');
 
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
 const CHANNEL_NAME = 'itops-metric-reporting';
@@ -34,8 +35,10 @@ try {
     avgTTR: formatTime(current.avgTTR),
     slaBreachCount: current.slaBreachCount,
     automationPercent: current.automationPercent,
+    automatedCount: current.automatedCount,
     csat: current.csat,
-    workforce: current.workforce
+    workforce: current.workforce,
+    start: current.start,
   };
 } catch (error) {
   console.error('Error loading weekly metrics from cache:', error.message);
@@ -48,37 +51,39 @@ const slaStatus = parseFloat(metrics.overallSlaPercent) >= 95 ? '✅' : '⚠️'
 const csatStatus = parseFloat(metrics.csat.avgScore) >= 4.5 ? '✅' : '⚠️';
 const automationStatus = parseFloat(metrics.automationPercent) >= 5 ? '✅' : '⚠️';
 const backlogStatus = metrics.createdCount <= metrics.resolvedCount ? '✅' : '⚠️';
+const workforceSection = buildWeeklyWorkforceSlackSection(metrics.workforce);
+const capacityLine = buildWeeklyCapacitySlackLine(metrics.start);
 
-const message = `📊 *IT Ops Weekly Metrics*
-📅 ${metrics.period}
+const message = `✅ *ISD Weekly Metrics Updated*
+📅 *Week of ${metrics.period}*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+All weekly Confluence pages have been automatically updated with the latest metrics.
 
-🎯 *Performance*
-${slaStatus} SLA: *${metrics.overallSlaPercent}%* (Target: 95%)
-⏱️ TTFR: ${metrics.avgTTFR} (Target: 2h)
-⏱️ TTR: ${metrics.avgTTR} (Target: 16h)
-${csatStatus} CSAT: *${metrics.csat.avgScore}/5.0* (${metrics.csat.totalResponses} reviews)
+*📊 Key Metrics:*
+• 📥 Created: ${metrics.createdCount} tickets
+• ✅ Resolved: ${metrics.resolvedCount} tickets
+• ⏱️ TTFR: ${metrics.avgTTFR}
+• ⏲️ TTR: ${metrics.avgTTR}
+• 🎯 SLA Met: ${metrics.overallSlaPercent}%
+• ⭐ CSAT: ${metrics.csat.avgScore}/5.0 (${metrics.csat.totalResponses} reviews)
+• 🤖 Automation: ${metrics.automationPercent}% (${metrics.automatedCount} tickets)
 
-📈 *Volume*
-${backlogStatus} Resolved: *${metrics.resolvedCount}* tickets
-📥 Created: *${metrics.createdCount}* tickets
-${metrics.createdCount > metrics.resolvedCount ? '⚠️ Backlog growing' : '✅ Backlog reducing'}
+*👥 Team Capacity & Availability:*
+• ${capacityLine}
+• ${metrics.createdCount > metrics.resolvedCount ? '⚠️ Backlog growing against current capacity' : '✅ Backlog keeping pace with current capacity'}
 
-🤖 *Automation*
-${automationStatus} Rate: *${metrics.automationPercent}%* (Target: 5%)
-⚡ Breaches: ${metrics.slaBreachCount} tickets
+*👥 Workforce Changes:*
+${workforceSection
+  .replace('👥 *Workforce*\n', '')
+  .split('\n')
+  .map((line) => `• ${line}`)
+  .join('\n')}
 
-👥 *Workforce*
-➕ Onboarded: ${metrics.workforce.fteOnboarding} FTE + ${metrics.workforce.contractorOnboarding} contractors
-➖ Offboarded: ${metrics.workforce.offboarding}
-📊 Net: ${metrics.workforce.netChange > 0 ? '🟢 +' : metrics.workforce.netChange < 0 ? '🔴 ' : '⚪️ '}${metrics.workforce.netChange}
+*📄 Updated Pages:*
+• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982|📈 Weekly Metrics Dashboard>
+• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6424363046|📝 Weekly Analyst Report>
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📋 *Full Reports*
-• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6423805982|📊 Dashboard>
-• <https://attentivemobile.atlassian.net/wiki/spaces/ISD/pages/6424363046|📈 Analyst Report>`;
+🤖 Automated via GitHub Actions • Next update: Next Monday at 9:00 AM ET`;
 
 function makeSlackRequest(data) {
   return new Promise((resolve, reject) => {
